@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import { useNavigate } from 'react-router-dom';
 import StatBox from './StatBox';
 import ActivityFeed from './ActivityFeed';
 import QuickActions from './QuickActions';
@@ -67,6 +68,7 @@ function Dashboard({ userName = 'User', dataService = mockFetchDashboardData }) 
   const [stats, setStats] = useState([]);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let isMounted = true;
@@ -85,7 +87,11 @@ function Dashboard({ userName = 'User', dataService = mockFetchDashboardData }) 
   }, [dataService]);
 
   const handleQuickAction = (action) => {
-    // TODO: Wire up real navigation/API calls per action.
+    if (action === 'View Requests') {
+      navigate('/requests');
+      return;
+    }
+    // TODO: Wire up real navigation/API calls for the remaining actions.
     console.log(`Quick action triggered: ${action}`);
   };
 

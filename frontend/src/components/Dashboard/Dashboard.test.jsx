@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import '@testing-library/jest-dom';
 import Dashboard, { getGreeting } from './Dashboard';
 import StatBox, { getStatColor } from './StatBox';
@@ -24,7 +25,11 @@ function renderDashboard(props = {}) {
   const dataService =
     props.dataService ||
     (() => Promise.resolve({ stats: FIXTURE_STATS, activities: FIXTURE_ACTIVITIES }));
-  return render(<Dashboard {...props} dataService={dataService} />);
+  return render(
+    <MemoryRouter>
+      <Dashboard {...props} dataService={dataService} />
+    </MemoryRouter>
+  );
 }
 
 describe('getGreeting', () => {
@@ -117,6 +122,24 @@ describe('Dashboard', () => {
 
     expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('Generate Report'));
     consoleLog.mockRestore();
+  });
+
+  it('navigates to /requests when "View Requests" is clicked', async () => {
+    const dataService = () =>
+      Promise.resolve({ stats: FIXTURE_STATS, activities: FIXTURE_ACTIVITIES });
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<Dashboard dataService={dataService} />} />
+          <Route path="/requests" element={<div>Requests Page Stub</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await screen.findByText('Active Users');
+    fireEvent.click(screen.getByRole('button', { name: 'View Requests' }));
+
+    expect(await screen.findByText('Requests Page Stub')).toBeInTheDocument();
   });
 });
 
