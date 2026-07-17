@@ -61,7 +61,7 @@ function Header({ title, userName = null, onLogout }) {
             type="button"
             onClick={handleHomeClick}
             aria-label="Go to home"
-            className="rounded-lg bg-[#d4a574] px-4 py-1.5 text-sm font-bold text-[#1a365d] transition-colors duration-200 hover:bg-[#c99a63] focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a365d]"
+            className="rounded-lg bg-[#d4a574] px-4 py-1.5 text-sm font-bold text-[#1a365d] transition-colors duration-200 hover:bg-[#c99a63] hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a365d]"
           >
             Home
           </button>
@@ -85,6 +85,10 @@ Header.propTypes = {
   title: PropTypes.string.isRequired,
   userName: PropTypes.string,
   onLogout: PropTypes.func.isRequired,
+};
+
+Header.defaultProps = {
+  userName: null,
 };
 
 export default Header;
