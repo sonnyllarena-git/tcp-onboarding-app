@@ -141,6 +141,24 @@ describe('Dashboard', () => {
 
     expect(await screen.findByText('Requests Page Stub')).toBeInTheDocument();
   });
+
+  it('navigates to /onboarding when "New Onboarding" is clicked', async () => {
+    const dataService = () =>
+      Promise.resolve({ stats: FIXTURE_STATS, activities: FIXTURE_ACTIVITIES });
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<Dashboard dataService={dataService} />} />
+          <Route path="/onboarding" element={<div>Onboarding Page Stub</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await screen.findByText('Active Users');
+    fireEvent.click(screen.getByRole('button', { name: 'New Onboarding' }));
+
+    expect(await screen.findByText('Onboarding Page Stub')).toBeInTheDocument();
+  });
 });
 
 describe('StatBox', () => {

@@ -87,6 +87,10 @@ function Dashboard({ userName = 'User', dataService = mockFetchDashboardData }) 
   }, [dataService]);
 
   const handleQuickAction = (action) => {
+    if (action === 'New Onboarding') {
+      navigate('/onboarding');
+      return;
+    }
     if (action === 'View Requests') {
       navigate('/requests');
       return;

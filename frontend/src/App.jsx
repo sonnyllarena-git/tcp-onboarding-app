@@ -6,10 +6,12 @@ import LoginPage from './components/LoginPage';
 import Dashboard from './components/Dashboard';
 import RequestsList from './components/RequestsList';
 import RequestDetails from './components/RequestDetails';
+import OnboardingForm from './components/OnboardingForm';
 
 const ROUTE_TITLES = {
   '/': 'Dashboard',
   '/requests': 'Requests',
+  '/onboarding': 'New Onboarding',
 };
 
 /**
@@ -49,6 +51,7 @@ function AuthenticatedApp({ userName, onLogout }) {
       <main className="max-w-7xl mx-auto p-6">
         <Routes>
           <Route path="/" element={<Dashboard userName={userName} />} />
+          <Route path="/onboarding" element={<OnboardingForm />} />
           <Route path="/requests" element={<RequestsList />} />
           <Route path="/requests/:id" element={<RequestDetails />} />
           <Route path="*" element={<Navigate to="/" replace />} />
