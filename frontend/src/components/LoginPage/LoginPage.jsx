@@ -1,125 +1,130 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import LoginForm from './LoginForm';
-
-// TODO: Replace with the real Azure AD SDK (@azure/msal-browser / @azure/msal-react).
-// This mock simulates the round trip of an interactive Microsoft sign-in:
-// a short delay followed by a resolved user profile.
-function mockAzureADLogin() {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({ email: 'employee@thecreditpros.com', name: 'TCP Employee' });
-    }, 2000);
-  });
-}
+import tcpLogo from '../../assets/tcp-logo.png';
 
 /**
  * LoginPage Component
  *
- * Main login container for TCP Employee Onboarding Portal.
- * Handles Azure AD authentication with error states.
- *
- * All async work (`authService`) is awaited inside a try/catch and every
- * failure is turned into local `error` state rather than a thrown error, so
- * this component renders safely under a standard React error boundary.
+ * SSO login page for TCP Employee Onboarding Portal.
+ * Displays TCP logo and "Sign in with Microsoft" button.
+ * Uses mock SSO for local development, will integrate real Azure AD on production.
  *
  * @component
- * @param {Function} [onLoginSuccess] - Callback when login succeeds, receives the authenticated user
- * @param {Function} [authService] - Injectable auth call, defaults to the mock Azure AD login. Swap in real MSAL logic here, or a stub in tests.
+ * @param {Function} onLoginSuccess - Callback when user successfully logs in
  * @returns {React.ReactElement} LoginPage component
  *
  * @example
- * <LoginPage onLoginSuccess={() => navigate('/dashboard')} />
+ * <LoginPage onLoginSuccess={() => setIsAuthenticated(true)} />
  */
-function LoginPage({ onLoginSuccess, authService = mockAzureADLogin }) {
-  const [email, setEmail] = useState('');
+function LoginPage({ onLoginSuccess }) {
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [error, setError] = useState(null);
 
-  const handleError = useCallback((errorMessage) => {
-    setError(errorMessage || 'Something went wrong. Please try again.');
-    setIsLoading(false);
-    setShowSuccess(false);
-  }, []);
-
-  const handleRetry = useCallback(() => {
-    setError('');
-    setShowSuccess(false);
-    setIsLoading(false);
-  }, []);
-
-  const handleEmailChange = useCallback((value) => {
-    setEmail(value);
-  }, []);
-
-  const handleMicrosoftLogin = useCallback(async () => {
+  /**
+   * Handle Microsoft SSO login click
+   * Mock: Simulates 2-second login delay
+   * Production: Will call real Azure AD MSAL SDK
+   *
+   * TODO: Replace with real Azure AD MSAL integration
+   */
+  const handleMicrosoftLogin = async () => {
     setIsLoading(true);
-    setError('');
+    setError(null);
 
     try {
-      const user = await authService();
-      setIsLoading(false);
-      setShowSuccess(true);
-      if (onLoginSuccess) {
-        onLoginSuccess(user);
-      }
+      // Mock SSO: Simulate 2-second login delay
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Mock user data from SSO
+      const mockUser = {
+        name: 'John Doe',
+        email: 'john.doe@thecreditpros.com',
+        id: 'user-123',
+      };
+
+      // TODO: Replace with real Azure AD response
+      console.log('SSO Login successful (mock):', mockUser);
+      onLoginSuccess(mockUser);
     } catch (err) {
-      handleError(err.message);
+      setError('Login failed. Please try again.');
+      console.error('Login error:', err);
+    } finally {
+      setIsLoading(false);
     }
-  }, [authService, onLoginSuccess, handleError]);
+  };
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-[#1a365d] via-[#152b4d] to-[#0d1b30] px-4 py-12 sm:px-6">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-md sm:p-8">
-        <header className="mb-6 text-center">
-          {/* TODO: Replace with the official TCP logo asset, e.g.
-              <img src={tcpLogo} alt="The Credit Pros logo" className="h-14 w-14" /> */}
-          <div
-            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#d4a574]/20"
-            aria-hidden="true"
-          >
-            <span className="text-lg font-bold text-[#d4a574]">TCP</span>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#1a365d] to-[#0d1b30] px-4 py-8">
+      <div className="w-full max-w-md rounded-2xl border border-[#d4a574] border-opacity-20 bg-[#1a365d] bg-opacity-50 p-8 shadow-2xl backdrop-blur-lg sm:p-10">
+        {/* Logo */}
+        <div className="mb-8 flex justify-center">
+          <div className="flex items-center justify-center rounded-lg bg-[#d4a574] p-3 shadow-lg">
+            <img
+              src={tcpLogo}
+              alt="The Credit Pros logo"
+              className="h-12 w-auto sm:h-14"
+            />
           </div>
-          <h1 className="text-[28px] font-bold leading-tight text-white">
-            Employee Onboarding Portal
-          </h1>
-          <p className="mt-2 text-sm text-gray-300">
-            Sign in with your TheCreditPros Microsoft account to continue
-          </p>
-        </header>
+        </div>
 
-        {showSuccess ? (
-          <div role="status" className="flex flex-col items-center gap-3 py-4 text-center">
-            <svg
-              className="h-12 w-12 text-[#48bb78]"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <p className="text-base font-semibold text-white">Sign-in successful. Redirecting...</p>
+        {/* Header Text */}
+        <h1 className="mb-2 text-center text-2xl font-bold text-white sm:text-3xl">
+          Employee Onboarding Portal
+        </h1>
+        <p className="mb-8 text-center text-sm text-gray-300 sm:text-base">
+          Sign in with your TheCreditPros Microsoft account to continue
+        </p>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-500 border-opacity-50 bg-red-500 bg-opacity-10 p-4">
+            <p className="text-sm font-medium text-red-400">{error}</p>
           </div>
-        ) : (
-          <LoginForm
-            email={email}
-            onEmailChange={handleEmailChange}
-            onSubmit={handleMicrosoftLogin}
-            isLoading={isLoading}
-            error={error}
-            onRetry={handleRetry}
-          />
         )}
+
+        {/* Email Field (Optional for future use) */}
+        <div className="mb-6">
+          <label htmlFor="email" className="mb-2 block text-sm font-medium text-gray-300">
+            Email (optional)
+          </label>
+          <input
+            id="email"
+            type="email"
+            placeholder="you@thecreditpros.com"
+            className="w-full rounded-lg border border-[#d4a574] border-opacity-30 bg-[#0d1b30] px-4 py-3 text-white placeholder-gray-500 transition-colors focus:border-[#d4a574] focus:outline-none focus:ring-2 focus:ring-[#d4a574] focus:ring-opacity-20"
+            disabled={isLoading}
+          />
+        </div>
+
+        {/* Microsoft Login Button */}
+        <button
+          type="button"
+          onClick={handleMicrosoftLogin}
+          disabled={isLoading}
+          aria-label="Sign in with Microsoft"
+          className="w-full rounded-lg bg-[#d4a574] px-4 py-3 font-bold text-[#1a365d] transition-all duration-200 hover:bg-[#c99a63] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a365d]"
+        >
+          {isLoading ? (
+            <div className="flex items-center justify-center gap-2">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#1a365d] border-t-transparent"></div>
+              <span>Signing in...</span>
+            </div>
+          ) : (
+            'Sign in with Microsoft'
+          )}
+        </button>
+
+        {/* Footer Text */}
+        <p className="mt-6 text-center text-xs text-gray-400">
+          By signing in, you agree to our Terms of Service
+        </p>
       </div>
     </div>
   );
 }
 
 LoginPage.propTypes = {
-  onLoginSuccess: PropTypes.func,
-  authService: PropTypes.func,
+  onLoginSuccess: PropTypes.func.isRequired,
 };
 
 export default LoginPage;
