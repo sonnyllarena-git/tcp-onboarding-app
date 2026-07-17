@@ -1,47 +1,33 @@
 import { useState } from 'react'
 import LoginPage from './components/LoginPage'
+import Dashboard from './components/Dashboard'
 
 /**
  * Main App Component
  *
- * Routes between different pages of the TCP Onboarding Portal
- * Currently shows LoginPage as entry point
+ * Routes between different pages of the TCP Onboarding Portal.
+ * Shows LoginPage until authentication succeeds, then Dashboard.
  *
  * @component
  * @returns {React.ReactElement} App component
  */
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [userName, setUserName] = useState('User')
 
-  const handleLoginSuccess = () => {
+  const handleLoginSuccess = (user) => {
+    setUserName(user?.name || 'User')
     setIsAuthenticated(true)
-    console.log('User authenticated successfully')
-    // TODO: Navigate to Dashboard after login
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-tcp-navy to-blue-900">
+    <>
       {!isAuthenticated ? (
         <LoginPage onLoginSuccess={handleLoginSuccess} />
       ) : (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold text-white mb-4">
-              Welcome to TCP Onboarding Portal
-            </h1>
-            <p className="text-tcp-gold text-lg">
-              Dashboard coming next...
-            </p>
-            <button
-              onClick={() => setIsAuthenticated(false)}
-              className="mt-8 btn-primary"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
+        <Dashboard userName={userName} />
       )}
-    </div>
+    </>
   )
 }
 
