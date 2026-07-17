@@ -110,7 +110,6 @@ function LoginForm({
         isLoading={isLoading}
         disabled={isLoading}
         variant="primary"
-        ariaLabel="Sign in with your Microsoft account"
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import LoginPage from './LoginPage';
@@ -36,7 +37,7 @@ describe('LoginPage', () => {
 
   it('shows a loading state and disables the button while authenticating', async () => {
     let resolveLogin;
-    const authService = jest.fn(
+    const authService = vi.fn(
       () =>
         new Promise((resolve) => {
           resolveLogin = resolve;
@@ -55,8 +56,8 @@ describe('LoginPage', () => {
 
   it('calls onLoginSuccess with the authenticated user after a successful login', async () => {
     const user = { email: 'employee@thecreditpros.com', name: 'TCP Employee' };
-    const authService = jest.fn().mockResolvedValue(user);
-    const onLoginSuccess = jest.fn();
+    const authService = vi.fn().mockResolvedValue(user);
+    const onLoginSuccess = vi.fn();
     render(<LoginPage authService={authService} onLoginSuccess={onLoginSuccess} />);
 
     fireEvent.click(screen.getByRole('button', { name: /sign in with microsoft/i }));
@@ -66,7 +67,7 @@ describe('LoginPage', () => {
   });
 
   it('displays an error message when authentication fails', async () => {
-    const authService = jest
+    const authService = vi
       .fn()
       .mockRejectedValue(new Error('Azure AD sign-in failed. Please try again.'));
     render(<LoginPage authService={authService} />);
@@ -78,7 +79,7 @@ describe('LoginPage', () => {
   });
 
   it('clears the error and returns to the form when "Try again" is clicked', async () => {
-    const authService = jest.fn().mockRejectedValue(new Error('Network error.'));
+    const authService = vi.fn().mockRejectedValue(new Error('Network error.'));
     render(<LoginPage authService={authService} />);
 
     fireEvent.click(screen.getByRole('button', { name: /sign in with microsoft/i }));
@@ -125,23 +126,26 @@ describe('LoginButton', () => {
   });
 
   it('invokes onClick when enabled and clicked', () => {
-    const onClick = jest.fn();
+    const onClick = vi.fn();
     render(<LoginButton text="Sign in" onClick={onClick} />);
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
   it('does not invoke onClick when disabled', () => {
-    const onClick = jest.fn();
+    const onClick = vi.fn();
     render(<LoginButton text="Sign in" onClick={onClick} disabled />);
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
     expect(onClick).not.toHaveBeenCalled();
   });
 
   it('logs a PropTypes warning when the required onClick prop is omitted', () => {
-    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     render(<LoginButton text="Sign in" />);
-    expect(consoleError.mock.calls[0][0]).toEqual(expect.stringContaining('onClick'));
+    const loggedOnClickWarning = consoleError.mock.calls.some((args) =>
+      args.some((arg) => typeof arg === 'string' && arg.includes('onClick'))
+    );
+    expect(loggedOnClickWarning).toBe(true);
     consoleError.mockRestore();
   });
 });
