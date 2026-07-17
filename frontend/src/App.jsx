@@ -7,11 +7,13 @@ import Dashboard from './components/Dashboard';
 import RequestsList from './components/RequestsList';
 import RequestDetails from './components/RequestDetails';
 import OnboardingForm from './components/OnboardingForm';
+import ManageUsers from './components/ManageUsers';
 
 const ROUTE_TITLES = {
   '/': 'Dashboard',
   '/requests': 'Requests',
   '/onboarding': 'New Onboarding',
+  '/manage-users': 'Manage Users',
 };
 
 /**
@@ -52,6 +54,7 @@ function AuthenticatedApp({ userName, onLogout }) {
         <Routes>
           <Route path="/" element={<Dashboard userName={userName} />} />
           <Route path="/onboarding" element={<OnboardingForm />} />
+          <Route path="/manage-users" element={<ManageUsers />} />
           <Route path="/requests" element={<RequestsList />} />
           <Route path="/requests/:id" element={<RequestDetails />} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -4,6 +4,7 @@ import PropTypes from 'prop-types';
 const ACTIONS = [
   { key: 'New Onboarding', icon: '➕' },
   { key: 'View Requests', icon: '📋' },
+  { key: 'Users List', icon: '👥' },
   { key: 'Generate Report', icon: '📊' },
   { key: 'Settings', icon: '⚙️' },
 ];

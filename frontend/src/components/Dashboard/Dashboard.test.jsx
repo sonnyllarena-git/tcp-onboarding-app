@@ -104,11 +104,12 @@ describe('Dashboard', () => {
     expect(screen.getByText('Bob Johnson')).toBeInTheDocument();
   });
 
-  it('renders all four quick action buttons', async () => {
+  it('renders all five quick action buttons', async () => {
     renderDashboard();
     await screen.findByText('Active Users');
     expect(screen.getByRole('button', { name: 'New Onboarding' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'View Requests' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Users List' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Generate Report' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
   });
@@ -158,6 +159,24 @@ describe('Dashboard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'New Onboarding' }));
 
     expect(await screen.findByText('Onboarding Page Stub')).toBeInTheDocument();
+  });
+
+  it('navigates to /manage-users when "Users List" is clicked', async () => {
+    const dataService = () =>
+      Promise.resolve({ stats: FIXTURE_STATS, activities: FIXTURE_ACTIVITIES });
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<Dashboard dataService={dataService} />} />
+          <Route path="/manage-users" element={<div>Manage Users Page Stub</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await screen.findByText('Active Users');
+    fireEvent.click(screen.getByRole('button', { name: 'Users List' }));
+
+    expect(await screen.findByText('Manage Users Page Stub')).toBeInTheDocument();
   });
 });
 

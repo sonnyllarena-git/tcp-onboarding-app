@@ -154,19 +154,20 @@ describe('OnboardingForm wizard', () => {
     expect(screen.getByRole('dialog', { name: /cancel request/i })).toBeInTheDocument();
   });
 
-  it('dismisses the cancel modal and stays on the form when its Cancel button is clicked', () => {
+  it('dismisses the cancel modal and stays on the form when "Continue Request" is clicked', () => {
     renderOnboardingForm();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     const dialog = screen.getByRole('dialog', { name: /cancel request/i });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Continue Request' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByText(/step 1 of 3/i)).toBeInTheDocument();
   });
 
-  it('navigates to Dashboard when "Continue Request" is clicked in the cancel modal', async () => {
+  it('navigates to Dashboard when the modal\'s "Cancel" button is clicked', async () => {
     renderOnboardingForm();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Continue Request' }));
+    const dialog = screen.getByRole('dialog', { name: /cancel request/i });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     expect(await screen.findByText('Dashboard Stub')).toBeInTheDocument();
   });
 

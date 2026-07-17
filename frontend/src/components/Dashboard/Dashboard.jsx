@@ -95,6 +95,10 @@ function Dashboard({ userName = 'User', dataService = mockFetchDashboardData }) 
       navigate('/requests');
       return;
     }
+    if (action === 'Users List') {
+      navigate('/manage-users');
+      return;
+    }
     // TODO: Wire up real navigation/API calls for the remaining actions.
     console.log(`Quick action triggered: ${action}`);
   };
