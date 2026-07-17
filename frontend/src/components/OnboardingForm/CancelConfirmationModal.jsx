@@ -5,11 +5,13 @@ import PropTypes from 'prop-types';
  * CancelConfirmationModal Component
  *
  * Modal asking user to confirm request cancellation.
+ * "Cancel" = Navigate to Dashboard
+ * "Continue Request" = Return to form
  *
  * @component
  * @param {boolean} isOpen - Show/hide modal
- * @param {Function} onConfirm - Confirm cancellation (navigates away)
- * @param {Function} onDismiss - Dismiss modal (returns to the form)
+ * @param {Function} onConfirm - Confirm cancellation (navigate to Dashboard)
+ * @param {Function} onDismiss - Dismiss modal (return to form)
  * @returns {React.ReactElement|null} Cancel confirmation modal
  */
 function CancelConfirmationModal({ isOpen, onConfirm, onDismiss }) {
@@ -31,35 +33,42 @@ function CancelConfirmationModal({ isOpen, onConfirm, onDismiss }) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4"
-      onClick={onDismiss}
-    >
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="cancel-confirm-title"
-        onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl"
+        aria-labelledby="cancel-modal-title"
+        className="w-full max-w-sm rounded-xl bg-white p-6 text-center shadow-2xl"
       >
-        <h2 id="cancel-confirm-title" className="mb-2 text-lg font-bold text-[#1a365d]">
+        <div
+          className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#f56565]/10 text-2xl"
+          aria-hidden="true"
+        >
+          ⚠️
+        </div>
+        <h2 id="cancel-modal-title" className="mb-2 text-lg font-bold text-[#1a365d]">
           Cancel Request?
         </h2>
         <p className="mb-6 text-sm text-gray-600">
           You are about to cancel your request. Please confirm.
         </p>
-        <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onDismiss}
-            className="rounded-lg border border-[#1a365d] px-4 py-2 text-sm font-bold text-[#1a365d] transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a365d]"
-          >
-            Cancel
-          </button>
+        
+        {/* TWO BUTTONS - Swapped behavior */}
+        <div className="flex gap-3">
+          {/* CANCEL BUTTON - Navigate to Dashboard */}
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-lg bg-[#d4a574] px-4 py-2 text-sm font-bold text-[#1a365d] transition-colors hover:bg-[#c99a63] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a365d]"
+            className="flex-1 rounded-lg bg-[#d4a574] px-4 py-2 text-sm font-bold text-[#1a365d] transition-colors hover:bg-[#c99a63] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a365d]"
+          >
+            Cancel
+          </button>
+          
+          {/* CONTINUE REQUEST BUTTON - Return to form */}
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="flex-1 rounded-lg border border-[#d4a574] px-4 py-2 text-sm font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574] hover:text-[#1a365d] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a365d]"
           >
             Continue Request
           </button>

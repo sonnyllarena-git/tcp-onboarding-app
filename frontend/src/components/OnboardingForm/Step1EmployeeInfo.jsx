@@ -1,14 +1,19 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Strict email regex: requires valid complete domain
+// Must have: username@domain.TLD (at least 2 chars after dot)
+// Examples that PASS: example@yahoo.com, user@test.co.uk, name@domain.org
+// Examples that FAIL: example@yahoo.c, example@yahoo.co, test@domain
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
 
 /**
- * Validates an email address format. Unlike an optional-field validator,
- * an empty string is invalid here since the email is required.
+ * Validates an email address format with strict requirements.
+ * Email must have complete domain (e.g., example@yahoo.com, not example@yahoo.c)
+ * An empty string is invalid since the email is required.
  *
  * @param {string} email - Email address to validate
- * @returns {boolean} True when the email is a well-formed, non-empty address
+ * @returns {boolean} True when the email is a well-formed, non-empty address with complete domain
  */
 export function validateEmail(email) {
   return EMAIL_REGEX.test(email);
@@ -32,6 +37,7 @@ export function validateStep1(formData) {
  * Step1EmployeeInfo Component
  *
  * First step: Collect employee information.
+ * Validates email with strict format (requires complete .com/.org/etc)
  *
  * @component
  * @param {Object} formData - Current form data
@@ -92,7 +98,7 @@ function Step1EmployeeInfo({ formData, onDataChange, onNext, onCancel }) {
           />
           {showEmailError && (
             <p id="email-error" role="alert" className="mt-1 text-sm text-[#f56565]">
-              Please enter a valid email address.
+              Please enter a valid email address (e.g., example@yahoo.com)
             </p>
           )}
         </div>
