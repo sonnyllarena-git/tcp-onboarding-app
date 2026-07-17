@@ -57,14 +57,14 @@ function Header({ title, userName = null, onLogout }) {
           )}
 
           {/* Home Button */}
-          <button
-            type="button"
-            onClick={handleHomeClick}
-            aria-label="Go to home"
-            className="rounded-lg bg-[#d4a574] px-4 py-1.5 text-sm font-bold text-[#1a365d] transition-colors duration-200 hover:bg-[#c99a63] hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a365d]"
-          >
-            Home
-          </button>
+<button
+  type="button"
+  onClick={handleHomeClick}
+  aria-label="Go to home"
+  className="rounded-lg bg-[#d4a574] px-4 py-1.5 text-sm font-bold text-[#1a365d] transition-all duration-200 hover:bg-[#c99a63] hover:shadow-lg hover:scale-105 hover:-translate-y-0.5 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a365d]"
+>
+  Home
+</button>
 
           {/* Logout Button */}
           <button
