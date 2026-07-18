@@ -1,10 +1,11 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import '@testing-library/jest-dom';
 import ManageUsers, { filterUsers, getPaginatedUsers } from './ManageUsers';
 import { getStatusStyle } from './UsersTable';
+import UserDetailsModal from './UserDetailsModal';
 
 const FIXTURE_USERS = [
   { id: 1, name: 'Olivia Martin', email: 'olivia.martin@thecreditpros.com', status: 'pending', dateOnboarded: 'Jul 16, 2026', dateOffboarded: null },
@@ -156,7 +157,7 @@ describe('ManageUsers', () => {
   it('shows the active-specific menu items for an active user', () => {
     renderManageUsers();
     fireEvent.click(screen.getByRole('button', { name: 'Actions for John Doe' }));
-    expect(screen.getByRole('menuitem', { name: 'View Details' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'View User Details' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Offboard' })).toBeInTheDocument();
   });
 
@@ -178,11 +179,24 @@ describe('ManageUsers', () => {
     expect(await screen.findByText('Offboard Stub')).toBeInTheDocument();
   });
 
-  it('navigates to /user/:id when View Details is clicked', async () => {
+  it('opens the UserDetailsModal (without navigating) when View User Details is clicked', () => {
     renderManageUsers();
     fireEvent.click(screen.getByRole('button', { name: 'Actions for John Doe' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'View Details' }));
-    expect(await screen.findByText('User Details Stub')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View User Details' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'John Doe' });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText('john.doe@thecreditpros.com')).toBeInTheDocument();
+    expect(screen.queryByText('User Details Stub')).not.toBeInTheDocument();
+    expect(screen.getByText(/page 1 of 2/i)).toBeInTheDocument();
+  });
+
+  it('closes the UserDetailsModal when its Close button is clicked', () => {
+    renderManageUsers();
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for John Doe' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View User Details' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0]);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('logs when "View Pending Details" is clicked', () => {
@@ -190,7 +204,93 @@ describe('ManageUsers', () => {
     renderManageUsers();
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Olivia Martin' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'View Pending Details' }));
-    expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('1'));
+    const loggedUserOne = consoleLog.mock.calls.some((args) =>
+      args.some((arg) => String(arg).includes('1'))
+    );
+    expect(loggedUserOne).toBe(true);
     consoleLog.mockRestore();
+  });
+});
+
+describe('UserDetailsModal', () => {
+  const PENDING_USER = {
+    id: 1,
+    name: 'Olivia Martin',
+    email: 'olivia.martin@thecreditpros.com',
+    status: 'pending',
+    dateOnboarded: 'Jul 16, 2026',
+    dateOffboarded: null,
+    platforms: ['Azure AD', 'Keeper'],
+  };
+
+  const INACTIVE_USER = {
+    id: 17,
+    name: 'Charlie Wilson',
+    email: 'charlie.wilson@thecreditpros.com',
+    status: 'inactive',
+    dateOnboarded: 'Jun 1, 2026',
+    dateOffboarded: 'Jul 10, 2026',
+    platforms: [],
+  };
+
+  it('renders nothing when isOpen is false', () => {
+    render(<UserDetailsModal isOpen={false} user={PENDING_USER} onClose={() => {}} />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('renders nothing when user is null, even if isOpen is true', () => {
+    render(<UserDetailsModal isOpen user={null} onClose={() => {}} />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('shows the status indicator, onboarded date, and platform checklist', () => {
+    render(<UserDetailsModal isOpen user={PENDING_USER} onClose={() => {}} />);
+    expect(screen.getByText('Pending')).toBeInTheDocument();
+    expect(screen.getByText('Jul 16, 2026')).toBeInTheDocument();
+    expect(screen.getByText('Azure AD')).toBeInTheDocument();
+    expect(screen.getByText('Keeper')).toBeInTheDocument();
+    expect(screen.queryByText(/date offboarded/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the Date Offboarded field for an inactive user', () => {
+    render(<UserDetailsModal isOpen user={INACTIVE_USER} onClose={() => {}} />);
+    expect(screen.getByText(/date offboarded/i)).toBeInTheDocument();
+    expect(screen.getByText('Jul 10, 2026')).toBeInTheDocument();
+  });
+
+  it('shows an empty state when the user has no assigned platforms', () => {
+    render(<UserDetailsModal isOpen user={INACTIVE_USER} onClose={() => {}} />);
+    expect(screen.getByText(/no platforms assigned/i)).toBeInTheDocument();
+  });
+
+  it('calls onClose when a Close button is clicked', () => {
+    const onClose = vi.fn();
+    render(<UserDetailsModal isOpen user={PENDING_USER} onClose={onClose} />);
+    // Both the top-right X and the footer button are labeled "Close".
+    const closeButtons = screen.getAllByRole('button', { name: 'Close' });
+    expect(closeButtons).toHaveLength(2);
+    fireEvent.click(closeButtons[0]);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onClose when clicking the backdrop', () => {
+    const onClose = vi.fn();
+    render(<UserDetailsModal isOpen user={PENDING_USER} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('dialog').parentElement);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call onClose when clicking inside the modal card', () => {
+    const onClose = vi.fn();
+    render(<UserDetailsModal isOpen user={PENDING_USER} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('dialog'));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('calls onClose when the Escape key is pressed', () => {
+    const onClose = vi.fn();
+    render(<UserDetailsModal isOpen user={PENDING_USER} onClose={onClose} />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

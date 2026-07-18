@@ -7,7 +7,7 @@ import RequestDetails, { getRequestById, formatDate } from './RequestDetails';
 import PlatformStatus, { getPlatformIcon } from './PlatformStatus';
 import DetailSection from './DetailSection';
 
-function renderRequestDetails(initialPath = '/requests/1') {
+function renderRequestDetails(initialPath = '/requests/107') {
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
@@ -20,7 +20,7 @@ function renderRequestDetails(initialPath = '/requests/1') {
 
 describe('getRequestById', () => {
   it('resolves the matching mock request for a known id', async () => {
-    const result = await getRequestById(1);
+    const result = await getRequestById(107);
     expect(result.employeeName).toBe('John Doe');
   });
 
@@ -30,8 +30,8 @@ describe('getRequestById', () => {
   });
 
   it('coerces a string id to match the numeric mock ids', async () => {
-    const result = await getRequestById('3');
-    expect(result.employeeName).toBe('Bob Johnson');
+    const result = await getRequestById('103');
+    expect(result.employeeName).toBe('Sophia Turner');
   });
 });
 
@@ -65,27 +65,27 @@ describe('RequestDetails', () => {
   });
 
   it('renders the employee details once loaded', async () => {
-    renderRequestDetails('/requests/1');
+    renderRequestDetails('/requests/107');
     expect(await screen.findByRole('heading', { name: 'John Doe' })).toBeInTheDocument();
     expect(screen.getByText('john.doe@thecreditpros.com')).toBeInTheDocument();
     expect(screen.getByText('Robert Chen')).toBeInTheDocument();
   });
 
   it('reads a different request based on the URL id param', async () => {
-    renderRequestDetails('/requests/3');
-    expect(await screen.findByRole('heading', { name: 'Bob Johnson' })).toBeInTheDocument();
+    renderRequestDetails('/requests/103');
+    expect(await screen.findByRole('heading', { name: 'Sophia Turner' })).toBeInTheDocument();
   });
 
   it('renders the platform sync statuses', async () => {
-    renderRequestDetails('/requests/1');
+    renderRequestDetails('/requests/107');
     await screen.findByRole('heading', { name: 'John Doe' });
-    expect(screen.getByText('Azure')).toBeInTheDocument();
+    expect(screen.getByText('Azure AD')).toBeInTheDocument();
     expect(screen.getByText('Keeper')).toBeInTheDocument();
     expect(screen.getByText('Acuity')).toBeInTheDocument();
   });
 
   it('renders the timeline events', async () => {
-    renderRequestDetails('/requests/1');
+    renderRequestDetails('/requests/107');
     expect(await screen.findByText('Request Created')).toBeInTheDocument();
     expect(screen.getByText('Review Started')).toBeInTheDocument();
     expect(screen.getByText('Request Completed')).toBeInTheDocument();
@@ -98,28 +98,28 @@ describe('RequestDetails', () => {
 
   it('logs when the Approve button is clicked', async () => {
     const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
-    renderRequestDetails('/requests/1');
+    renderRequestDetails('/requests/107');
     await screen.findByRole('heading', { name: 'John Doe' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
 
-    expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('1'));
+    expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('107'));
     consoleLog.mockRestore();
   });
 
   it('logs when the Reject button is clicked', async () => {
     const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
-    renderRequestDetails('/requests/1');
+    renderRequestDetails('/requests/107');
     await screen.findByRole('heading', { name: 'John Doe' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
 
-    expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('1'));
+    expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('107'));
     consoleLog.mockRestore();
   });
 
   it('navigates back to /requests when the back button is clicked', async () => {
-    renderRequestDetails('/requests/1');
+    renderRequestDetails('/requests/107');
     await screen.findByRole('heading', { name: 'John Doe' });
 
     fireEvent.click(screen.getByRole('button', { name: /back to requests/i }));

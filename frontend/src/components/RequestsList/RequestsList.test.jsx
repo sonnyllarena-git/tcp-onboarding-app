@@ -68,7 +68,7 @@ describe('RequestsList', () => {
     renderRequestsList();
     expect(screen.getByRole('heading', { name: /requests/i })).toBeInTheDocument();
     expect(screen.getByText('John Doe')).toBeInTheDocument();
-    expect(screen.getByText('Rachel Thomas')).toBeInTheDocument();
+    expect(screen.getByText('Noah Coleman')).toBeInTheDocument();
   });
 
   it('renders the table column headers', () => {
@@ -95,7 +95,7 @@ describe('RequestsList', () => {
     fireEvent.change(screen.getByLabelText(/filter by status/i), {
       target: { value: 'pending' },
     });
-    expect(screen.getByText('Charlie Wilson')).toBeInTheDocument();
+    expect(screen.getByText('Ethan Clark')).toBeInTheDocument();
     expect(screen.queryByText('John Doe')).not.toBeInTheDocument();
   });
 
@@ -105,11 +105,11 @@ describe('RequestsList', () => {
       target: { value: 'completed' },
     });
     fireEvent.change(screen.getByLabelText(/search by name or email/i), {
-      target: { value: 'jane' },
+      target: { value: 'john' },
     });
-    expect(screen.getByText('Jane Smith')).toBeInTheDocument();
-    expect(screen.queryByText('John Doe')).not.toBeInTheDocument();
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
     expect(screen.queryByText('Alice Brown')).not.toBeInTheDocument();
+    expect(screen.queryByText('Olivia Martin')).not.toBeInTheDocument();
   });
 
   it('shows an empty state when no requests match the filters', () => {

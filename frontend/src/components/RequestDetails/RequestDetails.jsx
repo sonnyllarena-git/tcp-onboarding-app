@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import DetailSection from './DetailSection';
 import PlatformStatus from './PlatformStatus';
 import Timeline from './Timeline';
+import { getMockRequestById } from '../../mockData';
 
 const STATUS_BADGE_STYLES = {
   completed: 'bg-[#48bb78] text-[#1a365d]',
@@ -16,162 +17,6 @@ const STATUS_LABELS = {
   pending: 'Pending',
 };
 
-const ALL_PLATFORMS_COMPLETED = [
-  { name: 'Azure', status: 'completed' },
-  { name: 'Keeper', status: 'completed' },
-  { name: 'Hodu', status: 'completed' },
-  { name: 'Krisp', status: 'completed' },
-  { name: 'Jira', status: 'completed' },
-  { name: 'Zoho Desk', status: 'completed' },
-  { name: 'Acuity', status: 'completed' },
-];
-
-const ALL_PLATFORMS_PENDING = ALL_PLATFORMS_COMPLETED.map((platform) => ({
-  ...platform,
-  status: 'pending',
-}));
-
-const MOCK_REQUEST_DETAILS = [
-  {
-    id: 1,
-    employeeName: 'John Doe',
-    email: 'john.doe@thecreditpros.com',
-    requestType: 'Onboarding',
-    status: 'completed',
-    startDate: 'Jul 15, 2026',
-    department: 'IT',
-    manager: 'Robert Chen',
-    platforms: ALL_PLATFORMS_COMPLETED,
-    timeline: [
-      { timestamp: 'Jul 15, 2026 10:30 AM', action: 'Request Created', status: 'completed' },
-      { timestamp: 'Jul 15, 2026 11:00 AM', action: 'Review Started', status: 'completed' },
-      { timestamp: 'Jul 15, 2026 02:30 PM', action: 'Request Completed', status: 'completed' },
-    ],
-  },
-  {
-    id: 2,
-    employeeName: 'Jane Smith',
-    email: 'jane.smith@thecreditpros.com',
-    requestType: 'Offboarding',
-    status: 'completed',
-    startDate: 'Jul 14, 2026',
-    department: 'Customer Support',
-    manager: 'Priya Patel',
-    platforms: ALL_PLATFORMS_COMPLETED,
-    timeline: [
-      { timestamp: 'Jul 14, 2026 09:00 AM', action: 'Request Created', status: 'completed' },
-      { timestamp: 'Jul 14, 2026 09:30 AM', action: 'Review Started', status: 'completed' },
-      { timestamp: 'Jul 14, 2026 04:00 PM', action: 'Request Completed', status: 'completed' },
-    ],
-  },
-  {
-    id: 3,
-    employeeName: 'Bob Johnson',
-    email: 'bob.johnson@thecreditpros.com',
-    requestType: 'Onboarding',
-    status: 'in-progress',
-    startDate: 'Jul 16, 2026',
-    department: 'Sales',
-    manager: 'David Kim',
-    platforms: [
-      { name: 'Azure', status: 'completed' },
-      { name: 'Keeper', status: 'in-progress' },
-      { name: 'Hodu', status: 'pending' },
-      { name: 'Krisp', status: 'pending' },
-      { name: 'Jira', status: 'completed' },
-      { name: 'Zoho Desk', status: 'pending' },
-      { name: 'Acuity', status: 'pending' },
-    ],
-    timeline: [
-      { timestamp: 'Jul 16, 2026 08:00 AM', action: 'Request Created', status: 'completed' },
-      { timestamp: 'Jul 16, 2026 09:00 AM', action: 'Review Started', status: 'completed' },
-    ],
-  },
-  {
-    id: 4,
-    employeeName: 'Alice Brown',
-    email: 'alice.brown@thecreditpros.com',
-    requestType: 'Onboarding',
-    status: 'completed',
-    startDate: 'Jul 10, 2026',
-    department: 'Marketing',
-    manager: 'Laura Chen',
-    platforms: ALL_PLATFORMS_COMPLETED,
-    timeline: [
-      { timestamp: 'Jul 10, 2026 10:00 AM', action: 'Request Created', status: 'completed' },
-      { timestamp: 'Jul 10, 2026 10:30 AM', action: 'Review Started', status: 'completed' },
-      { timestamp: 'Jul 10, 2026 03:00 PM', action: 'Request Completed', status: 'completed' },
-    ],
-  },
-  {
-    id: 5,
-    employeeName: 'Charlie Wilson',
-    email: 'charlie.wilson@thecreditpros.com',
-    requestType: 'Offboarding',
-    status: 'pending',
-    startDate: 'Jul 17, 2026',
-    department: 'Finance',
-    manager: 'Mark Anderson',
-    platforms: ALL_PLATFORMS_PENDING,
-    timeline: [{ timestamp: 'Jul 17, 2026 09:00 AM', action: 'Request Created', status: 'completed' }],
-  },
-  {
-    id: 6,
-    employeeName: 'Emma Davis',
-    email: 'emma.davis@thecreditpros.com',
-    requestType: 'Onboarding',
-    status: 'completed',
-    startDate: 'Jul 8, 2026',
-    department: 'HR',
-    manager: 'Nina Rodriguez',
-    platforms: ALL_PLATFORMS_COMPLETED,
-    timeline: [
-      { timestamp: 'Jul 8, 2026 08:30 AM', action: 'Request Created', status: 'completed' },
-      { timestamp: 'Jul 8, 2026 09:00 AM', action: 'Review Started', status: 'completed' },
-      { timestamp: 'Jul 8, 2026 01:00 PM', action: 'Request Completed', status: 'completed' },
-    ],
-  },
-  {
-    id: 7,
-    employeeName: 'Michael Lee',
-    email: 'michael.lee@thecreditpros.com',
-    requestType: 'Onboarding',
-    status: 'in-progress',
-    startDate: 'Jul 16, 2026',
-    department: 'Operations',
-    manager: 'Steve Park',
-    platforms: [
-      { name: 'Azure', status: 'completed' },
-      { name: 'Keeper', status: 'completed' },
-      { name: 'Hodu', status: 'in-progress' },
-      { name: 'Krisp', status: 'pending' },
-      { name: 'Jira', status: 'in-progress' },
-      { name: 'Zoho Desk', status: 'pending' },
-      { name: 'Acuity', status: 'pending' },
-    ],
-    timeline: [
-      { timestamp: 'Jul 16, 2026 08:15 AM', action: 'Request Created', status: 'completed' },
-      { timestamp: 'Jul 16, 2026 08:45 AM', action: 'Review Started', status: 'completed' },
-    ],
-  },
-  {
-    id: 8,
-    employeeName: 'Sarah Miller',
-    email: 'sarah.miller@thecreditpros.com',
-    requestType: 'Offboarding',
-    status: 'completed',
-    startDate: 'Jul 12, 2026',
-    department: 'IT',
-    manager: 'Angela Cruz',
-    platforms: ALL_PLATFORMS_COMPLETED,
-    timeline: [
-      { timestamp: 'Jul 12, 2026 09:00 AM', action: 'Request Created', status: 'completed' },
-      { timestamp: 'Jul 12, 2026 09:30 AM', action: 'Review Started', status: 'completed' },
-      { timestamp: 'Jul 12, 2026 05:00 PM', action: 'Request Completed', status: 'completed' },
-    ],
-  },
-];
-
 /**
  * Looks up a mock request record by id.
  * TODO: Replace with a real API call once the backend exists.
@@ -180,9 +25,7 @@ const MOCK_REQUEST_DETAILS = [
  * @returns {Promise<Object|null>} The matching request, or null if not found
  */
 export function getRequestById(id) {
-  const numericId = Number(id);
-  const record = MOCK_REQUEST_DETAILS.find((request) => request.id === numericId);
-  return Promise.resolve(record || null);
+  return Promise.resolve(getMockRequestById(id));
 }
 
 /**

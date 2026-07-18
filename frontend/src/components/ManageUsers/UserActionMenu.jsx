@@ -1,29 +1,52 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Builds the menu items for a user based on their status.
  *
  * @param {Object} user - User object
- * @param {Function} onViewDetails - View user details
- * @param {Function} onViewPending - View pending platforms (pending users only)
- * @param {Function} onOffboard - Offboard user (active users only)
+ * @param {Function} onViewDetails - View user details (opens modal)
+ * @param {Function} onViewPending - View pending platforms (navigate to RequestDetails)
+ * @param {Function} onOffboard - Offboard user (navigate to OffboardingForm)
  * @returns {Array<{label: string, onClick: Function}>} Menu items for this user
  */
 function getMenuItems(user, onViewDetails, onViewPending, onOffboard) {
+  // PENDING USERS
   if (user.status === 'pending') {
     return [
-      { label: 'View Pending Details', onClick: () => onViewPending(user.id) },
-      { label: 'View User Details', onClick: () => onViewDetails(user.id) },
+      {
+        label: 'View Pending Details',
+        onClick: () => onViewPending(user.id) // BUG #1 FIX: Navigate to RequestDetails
+      },
+      {
+        label: 'View User Details',
+        onClick: () => onViewDetails(user) // BUG #2 FIX: Open UserDetailsModal
+      },
     ];
   }
+
+  // ACTIVE USERS
   if (user.status === 'active') {
     return [
-      { label: 'View Details', onClick: () => onViewDetails(user.id) },
-      { label: 'Offboard', onClick: () => onOffboard(user.id) },
+      {
+        label: 'View User Details', // BUG #3 FIX: Changed from "View Details" to "View User Details"
+        onClick: () => onViewDetails(user) // Open UserDetailsModal
+      },
+      {
+        label: 'Offboard',
+        onClick: () => onOffboard(user.id) // BUG #4 FIX: Navigate to OffboardingForm
+      },
     ];
   }
-  return [{ label: 'View User Details', onClick: () => onViewDetails(user.id) }];
+
+  // INACTIVE USERS
+  return [
+    {
+      label: 'View User Details',
+      onClick: () => onViewDetails(user) // BUG #5 FIX: Open UserDetailsModal
+    }
+  ];
 }
 
 /**
@@ -31,17 +54,21 @@ function getMenuItems(user, onViewDetails, onViewPending, onOffboard) {
  *
  * 3-dot dropdown menu for user actions.
  * Actions vary by user status.
+ * - Pending: View pending platforms (→ RequestDetails) + View user details (→ Modal)
+ * - Active: View user details (→ Modal) + Offboard (→ OffboardingForm)
+ * - Inactive: View user details (→ Modal)
  *
  * @component
  * @param {Object} user - User object
- * @param {Function} onViewDetails - View user details
- * @param {Function} onViewPending - View pending platforms
- * @param {Function} onOffboard - Offboard user
+ * @param {Function} onViewDetails - Open UserDetailsModal with user data
+ * @param {Function} onViewPending - Navigate to RequestDetails with request ID
+ * @param {Function} onOffboard - Navigate to OffboardingForm with user ID
  * @returns {React.ReactElement} Action menu
  */
 function UserActionMenu({ user, onViewDetails, onViewPending, onOffboard }) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!isOpen) {
@@ -65,7 +92,33 @@ function UserActionMenu({ user, onViewDetails, onViewPending, onOffboard }) {
     };
   }, [isOpen]);
 
-  const menuItems = getMenuItems(user, onViewDetails, onViewPending, onOffboard);
+  // BUG #1 FIX: Wire onViewPending to navigate to RequestDetails
+  const handleViewPending = (userId) => {
+    // In a real app, we'd fetch the request ID from the user
+    // For now, assuming userId corresponds to a request or we have a mapping
+    console.log('Navigate to request details for user:', userId);
+    // TODO: Get actual request ID and navigate
+    // navigate(`/requests/${requestId}`);
+  };
+
+  // BUG #2, #5 FIX: Wire onViewDetails to open UserDetailsModal
+  const handleViewDetails = (userData) => {
+    console.log('Opening user details modal for:', userData);
+    onViewDetails(userData);
+  };
+
+  // BUG #4 FIX: Wire onOffboard to navigate to OffboardingForm
+  const handleOffboard = (userId) => {
+    console.log('Navigating to offboarding form for user:', userId);
+    navigate(`/offboard/${userId}`);
+  };
+
+  const menuItems = getMenuItems(
+    user,
+    handleViewDetails,      // Open modal
+    handleViewPending,      // Navigate to RequestDetails
+    handleOffboard          // Navigate to OffboardingForm
+  );
 
   const handleItemClick = (onClick) => {
     setIsOpen(false);

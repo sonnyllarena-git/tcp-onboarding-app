@@ -2,34 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import UsersFilters from './UsersFilters';
 import UsersTable from './UsersTable';
+import UserDetailsModal from './UserDetailsModal';
+import { MOCK_USERS, MOCK_REQUESTS, getMockRequestByEmail } from '../../mockData';
 
 const ITEMS_PER_PAGE = 10;
-
-const MOCK_USERS = [
-  // Pending (6)
-  { id: 1, name: 'Olivia Martin', email: 'olivia.martin@thecreditpros.com', status: 'pending', dateOnboarded: 'Jul 16, 2026', dateOffboarded: null, platforms: ['Azure AD', 'Keeper'] },
-  { id: 2, name: 'Ethan Clark', email: 'ethan.clark@thecreditpros.com', status: 'pending', dateOnboarded: 'Jul 17, 2026', dateOffboarded: null, platforms: ['Azure AD'] },
-  { id: 3, name: 'Sophia Turner', email: 'sophia.turner@thecreditpros.com', status: 'pending', dateOnboarded: 'Jul 15, 2026', dateOffboarded: null, platforms: ['Azure AD', 'Jira', 'Krisp'] },
-  { id: 4, name: 'Liam Foster', email: 'liam.foster@thecreditpros.com', status: 'pending', dateOnboarded: 'Jul 14, 2026', dateOffboarded: null, platforms: ['Azure AD', 'Hodu'] },
-  { id: 5, name: 'Ava Bennett', email: 'ava.bennett@thecreditpros.com', status: 'pending', dateOnboarded: 'Jul 17, 2026', dateOffboarded: null, platforms: ['Azure AD'] },
-  { id: 6, name: 'Noah Coleman', email: 'noah.coleman@thecreditpros.com', status: 'pending', dateOnboarded: 'Jul 16, 2026', dateOffboarded: null, platforms: ['Azure AD', 'Zoho Desk'] },
-  // Active (10)
-  { id: 7, name: 'John Doe', email: 'john.doe@thecreditpros.com', status: 'active', dateOnboarded: 'Jul 15, 2026', dateOffboarded: null, platforms: [] },
-  { id: 8, name: 'Jane Smith', email: 'jane.smith@thecreditpros.com', status: 'active', dateOnboarded: 'Jul 14, 2026', dateOffboarded: null, platforms: [] },
-  { id: 9, name: 'Bob Johnson', email: 'bob.johnson@thecreditpros.com', status: 'active', dateOnboarded: 'Jul 10, 2026', dateOffboarded: null, platforms: [] },
-  { id: 10, name: 'Alice Brown', email: 'alice.brown@thecreditpros.com', status: 'active', dateOnboarded: 'Jul 8, 2026', dateOffboarded: null, platforms: [] },
-  { id: 11, name: 'Emma Davis', email: 'emma.davis@thecreditpros.com', status: 'active', dateOnboarded: 'Jul 5, 2026', dateOffboarded: null, platforms: [] },
-  { id: 12, name: 'Michael Lee', email: 'michael.lee@thecreditpros.com', status: 'active', dateOnboarded: 'Jul 3, 2026', dateOffboarded: null, platforms: [] },
-  { id: 13, name: 'Sarah Miller', email: 'sarah.miller@thecreditpros.com', status: 'active', dateOnboarded: 'Jul 1, 2026', dateOffboarded: null, platforms: [] },
-  { id: 14, name: 'Daniel Reed', email: 'daniel.reed@thecreditpros.com', status: 'active', dateOnboarded: 'Jul 2, 2026', dateOffboarded: null, platforms: [] },
-  { id: 15, name: 'Grace Kim', email: 'grace.kim@thecreditpros.com', status: 'active', dateOnboarded: 'Jul 4, 2026', dateOffboarded: null, platforms: [] },
-  { id: 16, name: 'Lucas Ramirez', email: 'lucas.ramirez@thecreditpros.com', status: 'active', dateOnboarded: 'Jul 6, 2026', dateOffboarded: null, platforms: [] },
-  // Inactive (4)
-  { id: 17, name: 'Charlie Wilson', email: 'charlie.wilson@thecreditpros.com', status: 'inactive', dateOnboarded: 'Jun 1, 2026', dateOffboarded: 'Jul 10, 2026', platforms: [] },
-  { id: 18, name: 'David Garcia', email: 'david.garcia@thecreditpros.com', status: 'inactive', dateOnboarded: 'Jun 5, 2026', dateOffboarded: 'Jul 12, 2026', platforms: [] },
-  { id: 19, name: 'Laura Martinez', email: 'laura.martinez@thecreditpros.com', status: 'inactive', dateOnboarded: 'May 20, 2026', dateOffboarded: 'Jul 8, 2026', platforms: [] },
-  { id: 20, name: 'Kevin Anderson', email: 'kevin.anderson@thecreditpros.com', status: 'inactive', dateOnboarded: 'May 15, 2026', dateOffboarded: 'Jul 5, 2026', platforms: [] },
-];
 
 /**
  * Filters a list of users by search term (name or email, case-insensitive)
@@ -69,6 +45,18 @@ export function getPaginatedUsers(users, currentPage, itemsPerPage = ITEMS_PER_P
 }
 
 /**
+ * Find request ID by user email
+ * BUG #1 FIX: Look up pending request by email
+ *
+ * @param {string} email - User email
+ * @returns {number|null} Request ID or null if not found
+ */
+function getRequestIdByEmail(email) {
+  const request = getMockRequestByEmail(email);
+  return request ? request.id : null;
+}
+
+/**
  * ManageUsers Component
  *
  * Displays list of all users with filtering and pagination.
@@ -83,6 +71,8 @@ function ManageUsers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedUser, setSelectedUser] = useState(null); // NEW - For modal
+  const [showUserModal, setShowUserModal] = useState(false); // NEW - For modal
 
   const filteredUsers = useMemo(
     () => filterUsers(users, searchTerm, statusFilter),
@@ -110,15 +100,32 @@ function ManageUsers() {
     setCurrentPage(Math.min(Math.max(page, 1), totalPages));
   };
 
-  const handleViewDetails = (userId) => {
-    navigate(`/user/${userId}`);
+  // BUG #2, #5 FIX: Open UserDetailsModal
+  const handleViewDetails = (user) => {
+    setSelectedUser(user);
+    setShowUserModal(true);
   };
 
+  // NEW: Close modal
+  const handleCloseModal = () => {
+    setShowUserModal(false);
+    setSelectedUser(null);
+  };
+
+  // BUG #1 FIX: Navigate to RequestDetails with request ID
   const handleViewPending = (userId) => {
-    // TODO: Show the pending platform checklist once that view exists.
-    console.log(`View pending platforms for user: ${userId}`);
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+
+    const requestId = getRequestIdByEmail(user.email);
+    if (requestId) {
+      navigate(`/requests/${requestId}`);
+    } else {
+      console.warn(`No request found for user: ${user.email}`);
+    }
   };
 
+  // BUG #4 FIX: Navigate to OffboardingForm
   const handleOffboard = (userId) => {
     navigate(`/offboard/${userId}`);
   };
@@ -146,6 +153,13 @@ function ManageUsers() {
         onViewDetails={handleViewDetails}
         onViewPending={handleViewPending}
         onOffboard={handleOffboard}
+      />
+
+      {/* User Details Modal - NEW */}
+      <UserDetailsModal
+        isOpen={showUserModal}
+        user={selectedUser}
+        onClose={handleCloseModal}
       />
 
       <nav

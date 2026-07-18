@@ -2,21 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import RequestsFilters from './RequestsFilters';
 import RequestsTable from './RequestsTable';
-
-const MOCK_REQUESTS = [
-  { id: 1, name: 'John Doe', email: 'john.doe@thecreditpros.com', type: 'Onboarding', status: 'completed', date: 'Jul 15, 2026' },
-  { id: 2, name: 'Jane Smith', email: 'jane.smith@thecreditpros.com', type: 'Offboarding', status: 'completed', date: 'Jul 14, 2026' },
-  { id: 3, name: 'Bob Johnson', email: 'bob.johnson@thecreditpros.com', type: 'Onboarding', status: 'in-progress', date: 'Jul 16, 2026' },
-  { id: 4, name: 'Alice Brown', email: 'alice.brown@thecreditpros.com', type: 'Onboarding', status: 'completed', date: 'Jul 10, 2026' },
-  { id: 5, name: 'Charlie Wilson', email: 'charlie.wilson@thecreditpros.com', type: 'Offboarding', status: 'pending', date: 'Jul 17, 2026' },
-  { id: 6, name: 'Emma Davis', email: 'emma.davis@thecreditpros.com', type: 'Onboarding', status: 'completed', date: 'Jul 8, 2026' },
-  { id: 7, name: 'Michael Lee', email: 'michael.lee@thecreditpros.com', type: 'Onboarding', status: 'in-progress', date: 'Jul 16, 2026' },
-  { id: 8, name: 'Sarah Miller', email: 'sarah.miller@thecreditpros.com', type: 'Offboarding', status: 'completed', date: 'Jul 12, 2026' },
-  { id: 9, name: 'David Garcia', email: 'david.garcia@thecreditpros.com', type: 'Onboarding', status: 'pending', date: 'Jul 17, 2026' },
-  { id: 10, name: 'Laura Martinez', email: 'laura.martinez@thecreditpros.com', type: 'Onboarding', status: 'in-progress', date: 'Jul 15, 2026' },
-  { id: 11, name: 'Kevin Anderson', email: 'kevin.anderson@thecreditpros.com', type: 'Offboarding', status: 'pending', date: 'Jul 11, 2026' },
-  { id: 12, name: 'Rachel Thomas', email: 'rachel.thomas@thecreditpros.com', type: 'Onboarding', status: 'completed', date: 'Jul 9, 2026' },
-];
+import { MOCK_REQUESTS } from '../../mockData';
 
 /**
  * Filters a list of requests by search term (name or email, case-insensitive)

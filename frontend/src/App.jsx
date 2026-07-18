@@ -8,6 +8,7 @@ import RequestsList from './components/RequestsList';
 import RequestDetails from './components/RequestDetails';
 import OnboardingForm from './components/OnboardingForm';
 import ManageUsers from './components/ManageUsers';
+import OffboardingForm from './components/OffboardingForm';
 
 const ROUTE_TITLES = {
   '/': 'Dashboard',
@@ -28,6 +29,9 @@ function getRouteTitle(pathname) {
   }
   if (pathname.startsWith('/requests/')) {
     return 'Request Details';
+  }
+  if (pathname.startsWith('/offboard/')) {
+    return 'Offboard Employee';
   }
   return 'Dashboard';
 }
@@ -55,6 +59,7 @@ function AuthenticatedApp({ userName, onLogout }) {
           <Route path="/" element={<Dashboard userName={userName} />} />
           <Route path="/onboarding" element={<OnboardingForm />} />
           <Route path="/manage-users" element={<ManageUsers />} />
+          <Route path="/offboard/:userId" element={<OffboardingForm />} />
           <Route path="/requests" element={<RequestsList />} />
           <Route path="/requests/:id" element={<RequestDetails />} />
           <Route path="*" element={<Navigate to="/" replace />} />
