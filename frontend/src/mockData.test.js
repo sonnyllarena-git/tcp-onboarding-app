@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   MOCK_USERS,
   MOCK_REQUESTS,
+  MOCK_ACCOUNTS,
+  MOCK_DEPARTMENT_GROUPS,
+  AVAILABLE_PLATFORMS,
+  DEFAULT_SETTINGS,
   getMockUserById,
   getMockUserByEmail,
   getMockRequestById,
@@ -14,6 +18,7 @@ import {
   getMockPendingUsers,
   getMockPendingRequests,
   getMockDataSummary,
+  getMockAccountByEmail,
 } from './mockData';
 
 describe('getMockUserById', () => {
@@ -171,6 +176,87 @@ describe('data consistency and edge cases', () => {
   it('gives every active user an empty platforms list (nothing pending)', () => {
     getMockUsersByStatus('active').forEach((user) => {
       expect(user.platforms).toEqual([]);
+    });
+  });
+});
+
+describe('getMockAccountByEmail', () => {
+  it('returns the correct account for a known email', () => {
+    const account = getMockAccountByEmail('john.doe@thecreditpros.com');
+    expect(account.id).toBe('acc-3');
+    expect(account.role).toBe('ADMIN');
+  });
+
+  it('is case-insensitive and trims whitespace', () => {
+    expect(getMockAccountByEmail('  JOHN.DOE@THECREDITPROS.COM  ').id).toBe('acc-3');
+  });
+
+  it('returns null for an unknown email', () => {
+    expect(getMockAccountByEmail('nobody@thecreditpros.com')).toBeNull();
+  });
+
+  it('returns null for an empty or undefined email', () => {
+    expect(getMockAccountByEmail('')).toBeNull();
+    expect(getMockAccountByEmail(undefined)).toBeNull();
+  });
+});
+
+describe('MOCK_ACCOUNTS', () => {
+  it('has exactly 2 USER and 2 ADMIN accounts', () => {
+    const byRole = (role) => MOCK_ACCOUNTS.filter((account) => account.role === role);
+    expect(byRole('USER')).toHaveLength(2);
+    expect(byRole('ADMIN')).toHaveLength(2);
+  });
+});
+
+describe('MOCK_DEPARTMENT_GROUPS', () => {
+  it('has exactly 6 groups, each with an id, name, azureGroup, and color', () => {
+    expect(MOCK_DEPARTMENT_GROUPS).toHaveLength(6);
+    MOCK_DEPARTMENT_GROUPS.forEach((group) => {
+      expect(group).toEqual(
+        expect.objectContaining({
+          id: expect.any(String),
+          name: expect.any(String),
+          azureGroup: expect.any(String),
+          color: expect.any(String),
+        })
+      );
+    });
+  });
+});
+
+describe('AVAILABLE_PLATFORMS', () => {
+  it('has exactly 10 platforms, each with an id, name, category, and description', () => {
+    expect(AVAILABLE_PLATFORMS).toHaveLength(10);
+    AVAILABLE_PLATFORMS.forEach((platform) => {
+      expect(platform).toEqual(
+        expect.objectContaining({
+          id: expect.any(String),
+          name: expect.any(String),
+          category: expect.any(String),
+          description: expect.any(String),
+        })
+      );
+    });
+  });
+});
+
+describe('DEFAULT_SETTINGS', () => {
+  it('defaults dark mode to off', () => {
+    expect(DEFAULT_SETTINGS.darkMode).toBe(false);
+  });
+
+  it('has a defaultPlatformsByGroup entry for every department group', () => {
+    MOCK_DEPARTMENT_GROUPS.forEach((group) => {
+      expect(DEFAULT_SETTINGS.defaultPlatformsByGroup[group.id]).toBeDefined();
+    });
+  });
+
+  it('only references platform ids that actually exist in AVAILABLE_PLATFORMS', () => {
+    const validIds = new Set(AVAILABLE_PLATFORMS.map((platform) => platform.id));
+    DEFAULT_SETTINGS.activePlatforms.forEach((id) => expect(validIds.has(id)).toBe(true));
+    Object.values(DEFAULT_SETTINGS.defaultPlatformsByGroup).forEach((platformIds) => {
+      platformIds.forEach((id) => expect(validIds.has(id)).toBe(true));
     });
   });
 });

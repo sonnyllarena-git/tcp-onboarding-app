@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import tcpLogo from '../../assets/tcp-logo.png';
+import { useAuth } from '../../hooks/useAuth';
 
 /**
  * Header Component
@@ -20,6 +21,7 @@ import tcpLogo from '../../assets/tcp-logo.png';
  */
 function Header({ title, userName = null, onLogout }) {
   const navigate = useNavigate();
+  const user = useAuth();
 
   const handleLogoutClick = () => {
     try {
@@ -33,8 +35,12 @@ function Header({ title, userName = null, onLogout }) {
     navigate('/');
   };
 
+  const handleSettingsClick = () => {
+    navigate('/settings');
+  };
+
   return (
-    <header className="sticky top-0 z-50 bg-gradient-to-r from-[#1a365d] to-[#0d1b30] px-4 py-3 shadow-md sm:px-6">
+    <header className="sticky top-0 z-50 bg-gradient-to-r from-[#1a365d] to-[#0d1b30] px-4 py-3 shadow-md dark:from-[#0a0f1e] dark:to-[#0a0f1e] sm:px-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center rounded-lg bg-[#d4a574] p-2 shadow-sm">
@@ -48,11 +54,22 @@ function Header({ title, userName = null, onLogout }) {
 
         {/* Right: User Info, Home Button, and Logout */}
         <div className="flex items-center gap-4">
-          {/* User Name (SSO) */}
+          {/* User Name (SSO) + Role Badge */}
           {userName && (
-            <div className="hidden text-right sm:block">
-              <p className="text-xs text-gray-300">Logged in as</p>
-              <p className="text-sm font-semibold text-[#d4a574]">{userName}</p>
+            <div className="hidden items-center gap-2 sm:flex">
+              <div className="text-right">
+                <p className="text-xs text-gray-300">Logged in as</p>
+                <p className="text-sm font-semibold text-[#d4a574]">{userName}</p>
+              </div>
+              {user?.role && (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                    user.role === 'ADMIN' ? 'bg-[#d4a574] text-[#1a365d]' : 'bg-gray-400 text-[#1a365d]'
+                  }`}
+                >
+                  {user.role}
+                </span>
+              )}
             </div>
           )}
 
@@ -65,6 +82,16 @@ function Header({ title, userName = null, onLogout }) {
 >
   Home
 </button>
+
+          {/* Settings Button */}
+          <button
+            type="button"
+            onClick={handleSettingsClick}
+            aria-label="Settings"
+            className="rounded-lg border border-[#d4a574] px-4 py-1.5 text-sm font-bold text-[#d4a574] transition-colors duration-200 hover:bg-[#d4a574] hover:text-[#1a365d] focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a365d]"
+          >
+            <span aria-hidden="true">⚙️</span> Settings
+          </button>
 
           {/* Logout Button */}
           <button

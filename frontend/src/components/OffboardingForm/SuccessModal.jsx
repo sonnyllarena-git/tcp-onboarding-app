@@ -31,6 +31,7 @@ function formatDateTime(isoDateTime) {
  * @param {boolean} isOpen - Show/hide modal
  * @param {Object} [requestData] - Details of the submitted request
  * @param {string|number} requestData.requestId - Generated mock request id
+ * @param {string} requestData.employeeName - Name of the employee who was offboarded
  * @param {string} requestData.submittedBy - Name of who submitted the request
  * @param {string} requestData.submittedAt - ISO datetime the request was submitted
  * @param {Array<string>} requestData.selectedPlatforms - Platforms selected for offboarding
@@ -64,9 +65,12 @@ function SuccessModal({ isOpen, requestData, onGoToDashboard, onViewRequest }) {
         aria-labelledby="offboard-success-title"
         className="w-full max-w-md rounded-xl bg-white p-6 text-center shadow-2xl"
       >
-        <h2 id="offboard-success-title" className="mb-4 text-lg font-bold text-[#1a365d]">
+        <h2 id="offboard-success-title" className="mb-2 text-lg font-bold text-[#1a365d]">
           ✅ Offboarding Request Submitted
         </h2>
+        <p className="mb-4 text-sm text-gray-600">
+          Offboarding request for {requestData.employeeName} has been submitted.
+        </p>
 
         <dl className="mb-4 space-y-2 rounded-lg bg-gray-50 p-4 text-left text-sm">
           <div className="flex items-center justify-between gap-4">
@@ -122,6 +126,7 @@ SuccessModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   requestData: PropTypes.shape({
     requestId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    employeeName: PropTypes.string,
     submittedBy: PropTypes.string,
     submittedAt: PropTypes.string,
     selectedPlatforms: PropTypes.arrayOf(PropTypes.string),

@@ -28,6 +28,7 @@ function buildInitialFormData(user, userId) {
     employeeName: user ? user.name : '',
     email: user ? user.email : '',
     department: user ? user.department : '',
+    manager: user ? user.manager : '',
     dateOnboarded: user ? user.dateOnboarded : '',
     offboardingReason: '',
     offboardingDate: getTodayIsoDate(),
@@ -96,7 +97,7 @@ function OffboardingForm() {
     setSubmitting(true);
     // TODO: Replace with a real API call to submit the offboarding request.
     setTimeout(() => {
-      const requestId = Date.now();
+      const requestId = `OFF-${String(Date.now()).slice(-6).padStart(6, '0')}`;
       const submission = {
         requestId,
         userId: formData.userId,
@@ -130,7 +131,7 @@ function OffboardingForm() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl rounded-xl border border-[#f56565]/40 bg-[#f56565]/10 p-6">
           <p role="alert" className="text-sm text-[#f56565]">
             No employee found with id &quot;{userId}&quot;.
@@ -149,7 +150,7 @@ function OffboardingForm() {
 
   if (user.status !== 'active') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl rounded-xl border border-[#f56565]/40 bg-[#f56565]/10 p-6">
           <p role="alert" className="text-sm text-[#f56565]">
             {user.name} cannot be offboarded because their status is not Active.
@@ -167,7 +168,7 @@ function OffboardingForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-2xl rounded-xl border border-[#d4a574]/30 bg-[#1a365d] p-6 shadow-lg">
         <div className="mb-6">
           <p className="text-sm font-semibold text-gray-300">

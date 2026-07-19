@@ -1,13 +1,15 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import { useAuth } from '../../hooks/useAuth';
 
 const ACTIONS = [
   { key: 'New Onboarding', icon: '➕' },
   { key: 'View Requests', icon: '📋' },
   { key: 'Users List', icon: '👥' },
   { key: 'Generate Report', icon: '📊' },
-  { key: 'Settings', icon: '⚙️' },
 ];
+
+const ADMIN_ACTION = { key: 'Audit Logs', icon: '🛡️' };
 
 /**
  * QuickActions Component
@@ -19,11 +21,14 @@ const ACTIONS = [
  * @returns {React.ReactElement} QuickActions component
  */
 function QuickActions({ onAction }) {
+  const user = useAuth();
+  const actions = user?.role === 'ADMIN' ? [...ACTIONS, ADMIN_ACTION] : ACTIONS;
+
   return (
-    <div className="rounded-xl bg-white p-5 shadow-md">
-      <h2 className="mb-4 text-base font-bold text-[#1a365d]">Quick Actions</h2>
+    <div className="rounded-xl bg-white p-5 shadow-md dark:bg-[#111827]">
+      <h2 className="mb-4 text-base font-bold text-[#1a365d] dark:text-white">Quick Actions</h2>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {ACTIONS.map(({ key, icon }) => (
+        {actions.map(({ key, icon }) => (
           <button
             key={key}
             type="button"

@@ -40,7 +40,7 @@ function StatBox({ label, value, icon, trend, color }) {
   const isTrendingUp = trend === 'up';
 
   return (
-    <div className="rounded-xl bg-white p-5 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
+    <div className="rounded-xl bg-white p-5 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-lg dark:bg-[#111827]">
       <div className="flex items-start justify-between">
         <span
           className={`flex h-10 w-10 items-center justify-center rounded-full text-xl ${getStatColor(color)}`}
@@ -57,8 +57,8 @@ function StatBox({ label, value, icon, trend, color }) {
           <span className="sr-only">{isTrendingUp ? 'Trending up' : 'Trending down'}</span>
         </span>
       </div>
-      <p className="mt-4 text-sm text-gray-600">{label}</p>
-      <p className="text-[28px] font-bold leading-tight text-[#1a365d]">{value}</p>
+      <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">{label}</p>
+      <p className="text-[28px] font-bold leading-tight text-[#1a365d] dark:text-white">{value}</p>
     </div>
   );
 }

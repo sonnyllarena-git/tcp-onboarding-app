@@ -50,28 +50,28 @@ export function formatTime(timestamp) {
  */
 function ActivityFeed({ activities }) {
   return (
-    <div className="rounded-xl bg-white shadow-md">
-      <h2 className="border-b border-gray-100 px-4 py-3 text-base font-bold text-[#1a365d]">
+    <div className="rounded-xl bg-white shadow-md dark:bg-[#111827]">
+      <h2 className="border-b border-gray-100 px-4 py-3 text-base font-bold text-[#1a365d] dark:border-white/10 dark:text-white">
         Recent Activity
       </h2>
       {activities.length === 0 ? (
-        <p className="px-4 py-6 text-center text-sm text-gray-500">No recent activity.</p>
+        <p className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">No recent activity.</p>
       ) : (
         <ul className="max-h-[400px] overflow-y-auto" aria-label="Recent activity">
           {activities.map((activity, index) => (
             <li
               key={`${activity.user}-${activity.timestamp}`}
               className={`flex items-center justify-between gap-4 p-4 ${
-                index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                index % 2 === 0 ? 'bg-white dark:bg-[#111827]' : 'bg-gray-50 dark:bg-white/5'
               }`}
             >
               <div>
-                <p className="text-sm font-semibold text-[#1a365d]">{activity.user}</p>
-                <p className="text-sm text-gray-600">{activity.action}</p>
+                <p className="text-sm font-semibold text-[#1a365d] dark:text-white">{activity.user}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{activity.action}</p>
               </div>
               <div className="flex flex-col items-end gap-1">
-                <span className="text-xs text-gray-500">{formatTime(activity.timestamp)}</span>
-                <span className="flex items-center gap-1.5 text-xs font-medium text-gray-700">
+                <span className="text-xs text-gray-500 dark:text-gray-400">{formatTime(activity.timestamp)}</span>
+                <span className="flex items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-300">
                   <span
                     className={`h-2 w-2 rounded-full ${STATUS_DOT_CLASSES[activity.status]}`}
                     aria-hidden="true"

@@ -40,6 +40,8 @@ function formatDate(date) {
  * @param {string} user.name - User's display name
  * @param {string} user.email - User's email address
  * @param {'active'|'pending'|'inactive'} user.status - Current status
+ * @param {string} [user.department] - Department the user belongs to
+ * @param {string} [user.manager] - User's manager, or null/absent if none on file
  * @param {string} user.dateOnboarded - Onboarding date
  * @param {string} [user.dateOffboarded] - Offboarding date, if any
  * @param {Array<string>} [user.platforms] - Platforms assigned to the user
@@ -129,6 +131,14 @@ function UserDetailsModal({ isOpen, user, onClose }) {
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-4">
+                <dt className="text-gray-400">Department</dt>
+                <dd className="font-medium text-white">{user.department || 'N/A'}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-gray-400">Manager</dt>
+                <dd className="font-medium text-white">{user.manager || 'No manager'}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
                 <dt className="text-gray-400">Date Onboarded</dt>
                 <dd className="font-medium text-white">{formatDate(user.dateOnboarded)}</dd>
               </div>
@@ -188,6 +198,8 @@ UserDetailsModal.propTypes = {
     name: PropTypes.string,
     email: PropTypes.string,
     status: PropTypes.oneOf(['active', 'pending', 'inactive']),
+    department: PropTypes.string,
+    manager: PropTypes.string,
     dateOnboarded: PropTypes.string,
     dateOffboarded: PropTypes.string,
     platforms: PropTypes.arrayOf(PropTypes.string),

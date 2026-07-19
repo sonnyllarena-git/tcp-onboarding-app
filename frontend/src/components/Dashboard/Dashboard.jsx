@@ -99,12 +99,16 @@ function Dashboard({ userName = 'User', dataService = mockFetchDashboardData }) 
       navigate('/manage-users');
       return;
     }
+    if (action === 'Audit Logs') {
+      navigate('/audit-logs');
+      return;
+    }
     // TODO: Wire up real navigation/API calls for the remaining actions.
     console.log(`Quick action triggered: ${action}`);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">
       <header className="mb-6">
         <h1 className="text-[28px] font-bold text-white sm:text-[32px]">
           {getGreeting()}, {userName}

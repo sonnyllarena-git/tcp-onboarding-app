@@ -83,6 +83,10 @@ function Step3Review({ formData, onDataChange, onSubmit, onBack, onCancel, submi
             <dd className="font-medium text-white">{formData.department}</dd>
           </div>
           <div className="flex items-center justify-between gap-4">
+            <dt className="text-gray-400">Manager</dt>
+            <dd className="font-medium text-white">{formData.manager || 'No manager'}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-4">
             <dt className="text-gray-400">Status</dt>
             <dd className="font-medium text-[#48bb78]">Active</dd>
           </div>
@@ -202,6 +206,7 @@ Step3Review.propTypes = {
     employeeName: PropTypes.string,
     email: PropTypes.string,
     department: PropTypes.string,
+    manager: PropTypes.string,
     offboardingReason: PropTypes.string,
     offboardingDate: PropTypes.string,
     finalDay: PropTypes.string,

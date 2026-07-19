@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header';
@@ -9,12 +9,17 @@ import RequestDetails from './components/RequestDetails';
 import OnboardingForm from './components/OnboardingForm';
 import ManageUsers from './components/ManageUsers';
 import OffboardingForm from './components/OffboardingForm';
+import AuditLogs from './components/AuditLogs';
+import Settings from './components/Settings';
+import { AuthProvider, useAuth, useAuthActions } from './hooks/useAuth';
 
 const ROUTE_TITLES = {
   '/': 'Dashboard',
   '/requests': 'Requests',
   '/onboarding': 'New Onboarding',
   '/manage-users': 'Manage Users',
+  '/audit-logs': 'Audit Logs',
+  '/settings': 'Settings',
 };
 
 /**
@@ -60,6 +65,8 @@ function AuthenticatedApp({ userName, onLogout }) {
           <Route path="/onboarding" element={<OnboardingForm />} />
           <Route path="/manage-users" element={<ManageUsers />} />
           <Route path="/offboard/:userId" element={<OffboardingForm />} />
+          <Route path="/audit-logs" element={<AuditLogs />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="/requests" element={<RequestsList />} />
           <Route path="/requests/:id" element={<RequestDetails />} />
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -75,29 +82,27 @@ AuthenticatedApp.propTypes = {
 };
 
 /**
- * Main App Component
+ * AppRoutes Component
  *
- * Routes between LoginPage and authenticated views.
- * Manages SSO authentication state and user information.
+ * Routes between LoginPage and authenticated views, driven by the
+ * AuthContext's current user rather than local state — this is what lets
+ * a page reload or a direct URL visit survive via sessionStorage instead
+ * of always bouncing back to the login page.
  *
  * @component
- * @returns {React.ReactElement} App component
+ * @returns {React.ReactElement} AppRoutes component
  */
-function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userData, setUserData] = useState(null);
+function AppRoutes() {
+  const user = useAuth();
+  const { login, logout } = useAuthActions();
 
   /**
-   * Handle successful SSO login
-   * @param {Object} user - User data from SSO
-   * @param {string} user.name - User's display name
-   * @param {string} user.email - User's email
-   * @param {string} user.id - User's ID
+   * Handle successful mock login
+   * @param {Object} account - The MOCK_ACCOUNTS entry the user logged in as
    */
-  const handleLoginSuccess = (user) => {
-    setUserData(user);
-    setIsAuthenticated(true);
-    console.log('User logged in:', user.name);
+  const handleLoginSuccess = (account) => {
+    login(account);
+    console.log('User logged in:', account.name);
   };
 
   /**
@@ -105,24 +110,54 @@ function App() {
    * TODO: Call Azure AD logout when real MSAL is integrated
    */
   const handleLogout = () => {
-    setIsAuthenticated(false);
-    setUserData(null);
+    logout();
     console.log('User logged out');
   };
 
   return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30]">
-        {!isAuthenticated ? (
-          <Routes>
-            <Route path="/" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        ) : (
-          <AuthenticatedApp userName={userData?.name} onLogout={handleLogout} />
-        )}
-      </div>
-    </BrowserRouter>
+    <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e]">
+      {!user ? (
+        <Routes>
+          <Route path="/" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      ) : (
+        <AuthenticatedApp userName={user?.name} onLogout={handleLogout} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Main App Component
+ *
+ * Wraps the router in AuthProvider so every route can read the current
+ * user (and, for admin-only pages, their role) via useAuth().
+ *
+ * @component
+ * @returns {React.ReactElement} App component
+ */
+function App() {
+  // Applies the persisted dark-mode preference as soon as the app loads,
+  // before login and regardless of which page a reload lands on — Settings'
+  // own useEffect only re-applies it while the Settings page is mounted.
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('tcp_settings') || 'null');
+      if (stored?.darkMode) {
+        document.documentElement.classList.add('dark');
+      }
+    } catch {
+      // malformed localStorage - fall back to light mode
+    }
+  }, []);
+
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 

@@ -167,6 +167,38 @@ export const MOCK_REQUESTS = [
 ];
 
 /**
+ * MOCK_ACCOUNTS - Login credentials directory
+ *
+ * Simulates Azure AD group membership:
+ * - role 'ADMIN' = member of TCPOnboardingAppAdmin (IT, request processors)
+ * - role 'USER'  = member of TCPOnboardingAppUser (HR, Team Leads, requesters)
+ *
+ * These 4 names/emails intentionally match existing people in MOCK_USERS for
+ * consistency, but this is a separate directory (login accounts vs. managed
+ * employees) — a MOCK_USERS record can exist with no corresponding login
+ * account, and vice versa.
+ */
+export const MOCK_ACCOUNTS = [
+  { id: 'acc-1', name: 'Sarah Miller', email: 'sarah.miller@thecreditpros.com', role: 'USER', department: 'HR' },
+  { id: 'acc-2', name: 'Emma Davis', email: 'emma.davis@thecreditpros.com', role: 'USER', department: 'Finance' },
+  { id: 'acc-3', name: 'John Doe', email: 'john.doe@thecreditpros.com', role: 'ADMIN', department: 'IT' },
+  { id: 'acc-4', name: 'Michael Lee', email: 'michael.lee@thecreditpros.com', role: 'ADMIN', department: 'IT' },
+];
+
+/**
+ * Finds a login account by email (case-insensitive, trimmed).
+ * @param {string} email - Email address to look up
+ * @returns {Object|null} The matching account, or null if not found
+ */
+export function getMockAccountByEmail(email) {
+  if (!email) {
+    return null;
+  }
+  const normalized = email.trim().toLowerCase();
+  return MOCK_ACCOUNTS.find((account) => account.email.toLowerCase() === normalized) || null;
+}
+
+/**
  * Looks up a mock user by id.
  * @param {number|string} userId - User id, typically read from the URL
  * @returns {Object|null} The matching user, or null if not found
@@ -283,11 +315,80 @@ export function getMockDataSummary() {
   };
 }
 
+/**
+ * MOCK_DEPARTMENT_GROUPS - Simulates Azure AD role/groups.
+ * Production: these map to actual Azure AD security groups.
+ * Local: mock groups for testing Default Platforms per Department.
+ */
+export const MOCK_DEPARTMENT_GROUPS = [
+  { id: 'grp-1', name: 'IT Staff', azureGroup: 'TCP-IT-Staff', color: '#4299e1' },
+  { id: 'grp-2', name: 'HR Staff', azureGroup: 'TCP-HR-Staff', color: '#48bb78' },
+  { id: 'grp-3', name: 'Finance Staff', azureGroup: 'TCP-Finance-Staff', color: '#ed8936' },
+  { id: 'grp-4', name: 'Operations Staff', azureGroup: 'TCP-Operations-Staff', color: '#9f7aea' },
+  { id: 'grp-5', name: 'Sales Staff', azureGroup: 'TCP-Sales-Staff', color: '#f56565' },
+  { id: 'grp-6', name: 'Customer Support Staff', azureGroup: 'TCP-CustomerSupport-Staff', color: '#38b2ac' },
+];
+
+/**
+ * AVAILABLE_PLATFORMS - Master list of all platforms the app can manage.
+ * Admins can toggle platforms on/off via Platform Management settings.
+ */
+export const AVAILABLE_PLATFORMS = [
+  { id: 'plt-1', name: 'Azure AD', category: 'Identity', description: 'Microsoft Azure Active Directory' },
+  { id: 'plt-2', name: 'Keeper', category: 'Security', description: 'Password and secrets management' },
+  { id: 'plt-3', name: 'Hodu', category: 'Telephony', description: 'Call center platform' },
+  { id: 'plt-4', name: 'Krisp', category: 'Productivity', description: 'Noise cancellation software' },
+  { id: 'plt-5', name: 'Jira', category: 'Project', description: 'Project and issue tracking' },
+  { id: 'plt-6', name: 'Zoho Desk', category: 'Support', description: 'Customer support ticketing' },
+  { id: 'plt-7', name: 'Acuity', category: 'Scheduling', description: 'Appointment scheduling' },
+  { id: 'plt-8', name: 'TheCreditPros Portal', category: 'Internal', description: 'TCP internal portal' },
+  { id: 'plt-9', name: 'Sales IQ', category: 'Sales', description: 'Sales intelligence platform' },
+  { id: 'plt-10', name: 'StaffCounter', category: 'Monitoring', description: 'Staff activity monitoring' },
+];
+
+/**
+ * DEFAULT_SETTINGS - Initial settings values for all users.
+ * Persisted to localStorage key: 'tcp_settings' (see Settings/Settings.jsx's useSettings hook).
+ */
+export const DEFAULT_SETTINGS = {
+  // Appearance (USER + ADMIN)
+  darkMode: false,
+
+  // Notifications (USER + ADMIN)
+  notifications: {
+    requestApproved: true,
+    requestCompleted: true,
+    requestRejected: true,
+    newRequestSubmitted: false, // Admin: notified when new request comes in
+    platformFailed: true, // Admin: notified when platform sync fails
+  },
+
+  // Platform Management (ADMIN only)
+  // Platform IDs that are active/enabled in the app
+  activePlatforms: ['plt-1', 'plt-2', 'plt-3', 'plt-4', 'plt-5', 'plt-6', 'plt-7', 'plt-8', 'plt-9', 'plt-10'],
+
+  // Default Platforms Per Department Group (ADMIN only)
+  // Maps group ID -> array of platform IDs pre-checked on OnboardingForm
+  defaultPlatformsByGroup: {
+    'grp-1': ['plt-1', 'plt-2', 'plt-3', 'plt-4', 'plt-5'], // IT Staff
+    'grp-2': ['plt-1', 'plt-2', 'plt-6'], // HR Staff
+    'grp-3': ['plt-1', 'plt-2', 'plt-5'], // Finance Staff
+    'grp-4': ['plt-1', 'plt-2', 'plt-8'], // Operations Staff
+    'grp-5': ['plt-1', 'plt-2', 'plt-9'], // Sales Staff
+    'grp-6': ['plt-1', 'plt-2', 'plt-3', 'plt-6'], // Customer Support
+  },
+};
+
 const mockData = {
   PLATFORM_ACTIONS,
   PLATFORMS,
   MOCK_USERS,
   MOCK_REQUESTS,
+  MOCK_ACCOUNTS,
+  MOCK_DEPARTMENT_GROUPS,
+  AVAILABLE_PLATFORMS,
+  DEFAULT_SETTINGS,
+  getMockAccountByEmail,
   getMockUserById,
   getMockUserByEmail,
   getMockRequestById,

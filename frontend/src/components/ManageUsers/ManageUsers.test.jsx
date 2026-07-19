@@ -218,6 +218,8 @@ describe('UserDetailsModal', () => {
     name: 'Olivia Martin',
     email: 'olivia.martin@thecreditpros.com',
     status: 'pending',
+    department: 'IT',
+    manager: 'Diana Foster',
     dateOnboarded: 'Jul 16, 2026',
     dateOffboarded: null,
     platforms: ['Azure AD', 'Keeper'],
@@ -228,6 +230,8 @@ describe('UserDetailsModal', () => {
     name: 'Charlie Wilson',
     email: 'charlie.wilson@thecreditpros.com',
     status: 'inactive',
+    department: 'Finance',
+    manager: null,
     dateOnboarded: 'Jun 1, 2026',
     dateOffboarded: 'Jul 10, 2026',
     platforms: [],
@@ -250,6 +254,17 @@ describe('UserDetailsModal', () => {
     expect(screen.getByText('Azure AD')).toBeInTheDocument();
     expect(screen.getByText('Keeper')).toBeInTheDocument();
     expect(screen.queryByText(/date offboarded/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the department and manager for a user with a manager on file', () => {
+    render(<UserDetailsModal isOpen user={PENDING_USER} onClose={() => {}} />);
+    expect(screen.getByText('IT')).toBeInTheDocument();
+    expect(screen.getByText('Diana Foster')).toBeInTheDocument();
+  });
+
+  it('shows "No manager" for a user with no manager on file', () => {
+    render(<UserDetailsModal isOpen user={INACTIVE_USER} onClose={() => {}} />);
+    expect(screen.getByText('No manager')).toBeInTheDocument();
   });
 
   it('shows the Date Offboarded field for an inactive user', () => {

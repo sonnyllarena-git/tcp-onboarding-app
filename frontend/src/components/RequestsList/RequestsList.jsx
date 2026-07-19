@@ -53,7 +53,7 @@ function RequestsList() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">
       <header className="mb-6">
         <h1 className="text-[28px] font-bold text-white">Requests</h1>
         <p className="mt-1 text-sm text-gray-300">

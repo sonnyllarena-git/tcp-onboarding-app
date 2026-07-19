@@ -113,6 +113,7 @@ describe('OffboardingForm wizard', () => {
     expect(screen.getByText('John Doe')).toBeInTheDocument();
     expect(screen.getByText('john.doe@thecreditpros.com')).toBeInTheDocument();
     expect(screen.getByText('IT')).toBeInTheDocument();
+    expect(screen.getByText('Robert Chen')).toBeInTheDocument();
   });
 
   it('shows a not-found message for an unknown userId', () => {
@@ -172,6 +173,7 @@ describe('OffboardingForm wizard', () => {
 
     expect(screen.getByText(/step 3 of 3/i)).toBeInTheDocument();
     expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('Robert Chen')).toBeInTheDocument();
     expect(screen.getByText(/Azure AD - Disable account/)).toBeInTheDocument();
     expect(screen.getByText(/Keeper - Delete credentials/)).toBeInTheDocument();
   });

@@ -1,11 +1,14 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import '@testing-library/jest-dom';
 import Dashboard, { getGreeting } from './Dashboard';
 import StatBox, { getStatColor } from './StatBox';
 import ActivityFeed, { formatTime } from './ActivityFeed';
+import { useAuth } from '../../hooks/useAuth';
+
+vi.mock('../../hooks/useAuth');
 
 const HOUR = 60 * 60 * 1000;
 
@@ -73,6 +76,10 @@ describe('formatTime', () => {
   });
 });
 
+beforeEach(() => {
+  useAuth.mockReturnValue(null);
+});
+
 describe('Dashboard', () => {
   it('shows a loading indicator before data resolves', () => {
     renderDashboard({ dataService: () => new Promise(() => {}) });
@@ -104,14 +111,39 @@ describe('Dashboard', () => {
     expect(screen.getByText('Bob Johnson')).toBeInTheDocument();
   });
 
-  it('renders all five quick action buttons', async () => {
+  it('renders all four quick action buttons for non-admin', async () => {
     renderDashboard();
     await screen.findByText('Active Users');
     expect(screen.getByRole('button', { name: 'New Onboarding' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'View Requests' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Users List' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Generate Report' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument();
+  });
+
+  it('does not show the Audit Logs quick action for a non-admin user', async () => {
+    renderDashboard();
+    await screen.findByText('Active Users');
+    expect(screen.queryByRole('button', { name: 'Audit Logs' })).not.toBeInTheDocument();
+  });
+
+  it('shows the Audit Logs quick action for an admin user and navigates to /audit-logs', async () => {
+    useAuth.mockReturnValue({ name: 'John Doe', role: 'ADMIN' });
+    const dataService = () =>
+      Promise.resolve({ stats: FIXTURE_STATS, activities: FIXTURE_ACTIVITIES });
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<Dashboard dataService={dataService} />} />
+          <Route path="/audit-logs" element={<div>Audit Logs Page Stub</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await screen.findByText('Active Users');
+    fireEvent.click(screen.getByRole('button', { name: 'Audit Logs' }));
+
+    expect(await screen.findByText('Audit Logs Page Stub')).toBeInTheDocument();
   });
 
   it('logs the action name when a quick action button is clicked', async () => {

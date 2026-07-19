@@ -108,7 +108,7 @@ function RequestDetails() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">
         {backButton}
         <div role="status" className="flex items-center justify-center gap-3 py-24">
           <svg
@@ -132,7 +132,7 @@ function RequestDetails() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">
         {backButton}
         <div role="alert" className="rounded-xl border border-[#f56565]/40 bg-[#f56565]/10 p-6">
           <p className="text-sm text-[#f56565]">{error}</p>
@@ -150,7 +150,7 @@ function RequestDetails() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">
       {backButton}
 
       <div className="rounded-xl border border-[#d4a574]/30 bg-[#1a365d] p-6 shadow-lg">

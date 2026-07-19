@@ -2,9 +2,7 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import LoginPage from './LoginPage';
-import LoginButton from './LoginButton';
-import { validateEmail } from './LoginForm';
+import LoginPage, { validateEmail } from './LoginPage';
 
 describe('validateEmail', () => {
   it('accepts a well-formed email address', () => {
@@ -19,133 +17,126 @@ describe('validateEmail', () => {
     expect(validateEmail('employee@')).toBe(false);
   });
 
-  it('treats an empty string as valid since the field is optional', () => {
-    expect(validateEmail('')).toBe(true);
+  it('rejects an empty string, since email is now required', () => {
+    expect(validateEmail('')).toBe(false);
   });
 });
 
+function renderLoginPage() {
+  const onLoginSuccess = vi.fn();
+  render(<LoginPage onLoginSuccess={onLoginSuccess} />);
+  return onLoginSuccess;
+}
+
+function fillEmail(email) {
+  fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: email } });
+}
+
 describe('LoginPage', () => {
-  it('renders the heading and the Microsoft sign-in button', () => {
-    render(<LoginPage />);
+  it('renders the heading, email field, and both login buttons', () => {
+    renderLoginPage();
     expect(
       screen.getByRole('heading', { name: /employee onboarding portal/i })
     ).toBeInTheDocument();
+    expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Login as User' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Login as Admin' })).toBeInTheDocument();
+  });
+
+  it('shows a validation error and does not log in when the email is empty', async () => {
+    const onLoginSuccess = renderLoginPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Login as User' }));
+
+    expect(await screen.findByText(/please enter a valid email address/i)).toBeInTheDocument();
+    expect(onLoginSuccess).not.toHaveBeenCalled();
+  });
+
+  it('shows a validation error for a malformed email regardless of which button is clicked', async () => {
+    const onLoginSuccess = renderLoginPage();
+    fillEmail('not-an-email');
+    fireEvent.click(screen.getByRole('button', { name: 'Login as Admin' }));
+
+    expect(await screen.findByText(/please enter a valid email address/i)).toBeInTheDocument();
+    expect(onLoginSuccess).not.toHaveBeenCalled();
+  });
+
+  it('shows "Account not found" for an email with no matching account', async () => {
+    const onLoginSuccess = renderLoginPage();
+    fillEmail('nobody@thecreditpros.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Login as User' }));
+
+    expect(await screen.findByText(/account not found/i, {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(onLoginSuccess).not.toHaveBeenCalled();
+  }, 5000);
+
+  it('logs in a USER account via "Login as User"', async () => {
+    const onLoginSuccess = renderLoginPage();
+    fillEmail('sarah.miller@thecreditpros.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Login as User' }));
+
+    await waitFor(() => expect(onLoginSuccess).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    expect(onLoginSuccess.mock.calls[0][0]).toMatchObject({
+      email: 'sarah.miller@thecreditpros.com',
+      role: 'USER',
+    });
+  }, 5000);
+
+  it('denies a USER account via "Login as Admin" without logging in', async () => {
+    const onLoginSuccess = renderLoginPage();
+    fillEmail('sarah.miller@thecreditpros.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Login as Admin' }));
+
     expect(
-      screen.getByRole('button', { name: /sign in with microsoft/i })
+      await screen.findByText(/you don't have admin access/i, {}, { timeout: 3000 })
     ).toBeInTheDocument();
+    expect(onLoginSuccess).not.toHaveBeenCalled();
+  }, 5000);
+
+  it('logs in an ADMIN account via "Login as Admin"', async () => {
+    const onLoginSuccess = renderLoginPage();
+    fillEmail('john.doe@thecreditpros.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Login as Admin' }));
+
+    await waitFor(() => expect(onLoginSuccess).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    expect(onLoginSuccess.mock.calls[0][0]).toMatchObject({
+      email: 'john.doe@thecreditpros.com',
+      role: 'ADMIN',
+    });
+  }, 5000);
+
+  it('logs in an ADMIN account via "Login as User" — role comes from the account, not the button', async () => {
+    const onLoginSuccess = renderLoginPage();
+    fillEmail('john.doe@thecreditpros.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Login as User' }));
+
+    await waitFor(() => expect(onLoginSuccess).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    expect(onLoginSuccess.mock.calls[0][0].role).toBe('ADMIN');
+  }, 5000);
+
+  it('disables both buttons and shows a spinner while a login is in progress', async () => {
+    renderLoginPage();
+    fillEmail('sarah.miller@thecreditpros.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Login as User' }));
+
+    expect(await screen.findByRole('button', { name: /signing in/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Login as Admin' })).toBeDisabled();
   });
 
-  it('shows a loading state and disables the button while authenticating', async () => {
-    let resolveLogin;
-    const authService = vi.fn(
-      () =>
-        new Promise((resolve) => {
-          resolveLogin = resolve;
-        })
-    );
-    render(<LoginPage authService={authService} />);
+  it('dismisses the "no admin access" alert when its close button is clicked', async () => {
+    renderLoginPage();
+    fillEmail('sarah.miller@thecreditpros.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Login as Admin' }));
 
-    fireEvent.click(screen.getByRole('button', { name: /sign in with microsoft/i }));
+    await screen.findByText(/you don't have admin access/i, {}, { timeout: 3000 });
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
 
-    expect(await screen.findByText(/signing in/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign in with microsoft/i })).toBeDisabled();
+    expect(screen.queryByText(/you don't have admin access/i)).not.toBeInTheDocument();
+  }, 5000);
 
-    resolveLogin({ email: 'employee@thecreditpros.com', name: 'TCP Employee' });
-    await waitFor(() => expect(screen.queryByText(/signing in/i)).not.toBeInTheDocument());
-  });
-
-  it('calls onLoginSuccess with the authenticated user after a successful login', async () => {
-    const user = { email: 'employee@thecreditpros.com', name: 'TCP Employee' };
-    const authService = vi.fn().mockResolvedValue(user);
-    const onLoginSuccess = vi.fn();
-    render(<LoginPage authService={authService} onLoginSuccess={onLoginSuccess} />);
-
-    fireEvent.click(screen.getByRole('button', { name: /sign in with microsoft/i }));
-
-    await waitFor(() => expect(onLoginSuccess).toHaveBeenCalledWith(user));
-    expect(screen.getByText(/sign-in successful/i)).toBeInTheDocument();
-  });
-
-  it('displays an error message when authentication fails', async () => {
-    const authService = vi
-      .fn()
-      .mockRejectedValue(new Error('Azure AD sign-in failed. Please try again.'));
-    render(<LoginPage authService={authService} />);
-
-    fireEvent.click(screen.getByRole('button', { name: /sign in with microsoft/i }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(/azure ad sign-in failed/i);
-    expect(screen.getByRole('button', { name: /sign in with microsoft/i })).not.toBeDisabled();
-  });
-
-  it('clears the error and returns to the form when "Try again" is clicked', async () => {
-    const authService = vi.fn().mockRejectedValue(new Error('Network error.'));
-    render(<LoginPage authService={authService} />);
-
-    fireEvent.click(screen.getByRole('button', { name: /sign in with microsoft/i }));
-    await screen.findByRole('alert');
-
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
-
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  });
-
-  it('updates the email field as the user types', () => {
-    render(<LoginPage />);
-    const emailInput = screen.getByLabelText(/email/i);
-    fireEvent.change(emailInput, { target: { value: 'employee@thecreditpros.com' } });
-    expect(emailInput).toHaveValue('employee@thecreditpros.com');
-  });
-
-  it('shows a validation message for an invalid email once the field loses focus', () => {
-    render(<LoginPage />);
-    const emailInput = screen.getByLabelText(/email/i);
-    fireEvent.change(emailInput, { target: { value: 'not-an-email' } });
-    fireEvent.blur(emailInput);
-    expect(screen.getByText(/enter a valid email/i)).toBeInTheDocument();
-  });
-
-  it('does not show a validation message while the field still has focus', () => {
-    render(<LoginPage />);
-    const emailInput = screen.getByLabelText(/email/i);
-    fireEvent.change(emailInput, { target: { value: 'not-an-email' } });
-    expect(screen.queryByText(/enter a valid email/i)).not.toBeInTheDocument();
-  });
-
-  it('does not show a validation message for an empty, untouched email field', () => {
-    render(<LoginPage />);
-    expect(screen.queryByText(/enter a valid email/i)).not.toBeInTheDocument();
-  });
-});
-
-describe('LoginButton', () => {
-  it('renders the loading spinner and disables the button when isLoading is true', () => {
-    render(<LoginButton text="Sign in" onClick={() => {}} isLoading />);
-    expect(screen.getByText(/signing in/i)).toBeInTheDocument();
-    expect(screen.getByRole('button')).toBeDisabled();
-  });
-
-  it('invokes onClick when enabled and clicked', () => {
-    const onClick = vi.fn();
-    render(<LoginButton text="Sign in" onClick={onClick} />);
-    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
-    expect(onClick).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not invoke onClick when disabled', () => {
-    const onClick = vi.fn();
-    render(<LoginButton text="Sign in" onClick={onClick} disabled />);
-    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
-    expect(onClick).not.toHaveBeenCalled();
-  });
-
-  it('logs a PropTypes warning when the required onClick prop is omitted', () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    render(<LoginButton text="Sign in" />);
-    const loggedOnClickWarning = consoleError.mock.calls.some((args) =>
-      args.some((arg) => typeof arg === 'string' && arg.includes('onClick'))
-    );
-    expect(loggedOnClickWarning).toBe(true);
-    consoleError.mockRestore();
+  it('renders the collapsible test accounts list', () => {
+    renderLoginPage();
+    expect(screen.getByText('Test accounts')).toBeInTheDocument();
+    expect(screen.getByText('john.doe@thecreditpros.com (ADMIN)')).toBeInTheDocument();
+    expect(screen.getByText('sarah.miller@thecreditpros.com (USER)')).toBeInTheDocument();
   });
 });

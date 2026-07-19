@@ -87,6 +87,10 @@ function Step1EmployeeInfo({ formData, onDataChange, onNext, onCancel }) {
           <dd className="font-medium text-white">{formData.department}</dd>
         </div>
         <div className="flex items-center justify-between gap-4">
+          <dt className="text-gray-400">Manager</dt>
+          <dd className="font-medium text-white">{formData.manager || 'No manager'}</dd>
+        </div>
+        <div className="flex items-center justify-between gap-4">
           <dt className="text-gray-400">Date Onboarded</dt>
           <dd className="font-medium text-white">{formData.dateOnboarded}</dd>
         </div>
@@ -198,6 +202,7 @@ Step1EmployeeInfo.propTypes = {
     employeeName: PropTypes.string,
     email: PropTypes.string,
     department: PropTypes.string,
+    manager: PropTypes.string,
     dateOnboarded: PropTypes.string,
     offboardingReason: PropTypes.string,
     offboardingDate: PropTypes.string,
