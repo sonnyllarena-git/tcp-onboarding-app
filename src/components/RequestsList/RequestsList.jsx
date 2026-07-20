@@ -138,18 +138,22 @@ function RequestsList() {
                 onClick={() => navigate(`/requests/${req.id}`)}
                 className="bg-[#1a365d] border border-[#d4a574]/30 p-4 rounded-lg cursor-pointer hover:bg-[#1a365d]/80 transition-colors"
               >
-                <div className="flex items-center justify-between">
+                <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[1fr_auto_1fr] md:gap-6">
                   <div>
                     <p className="text-white font-semibold">{req.employeeName}</p>
-                    <p className="text-gray-400 text-sm">{req.type} • {req.email}</p>
-                    {workEmail && (
-                      <p className="mt-1 inline-block rounded border border-[#48bb78]/40 bg-[#48bb78]/10 px-2 py-0.5 text-xs font-semibold text-[#48bb78]">
-                        📧 {workEmail}
-                      </p>
-                    )}
+                    <p className={`text-sm ${workEmail ? 'text-[#48bb78] font-semibold' : 'text-gray-400'}`}>
+                      {workEmail || 'Work Email not yet created'}
+                    </p>
                   </div>
-                  <div className="text-right">
-                    <div className="flex items-center justify-end gap-2">
+
+                  <div className="text-left md:text-center">
+                    <span className="inline-block rounded-full bg-[#d4a574]/15 px-4 py-1.5 text-xs font-bold text-[#d4a574]">
+                      {req.type}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-row items-center justify-between gap-2 md:flex-col md:items-end">
+                    <div className="flex items-center gap-2">
                       {slaViolated && (
                         <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
                           SLA

@@ -106,7 +106,6 @@ function UserDetailsModal({ isOpen, user, onClose, onViewRequest }) {
               <h2 id="user-details-modal-title" className="text-xl font-bold text-white">
                 {user.name}
               </h2>
-              <p className="text-sm text-gray-400">{user.email}</p>
             </div>
           </div>
           <button
@@ -148,6 +147,25 @@ function UserDetailsModal({ isOpen, user, onClose, onViewRequest }) {
             </div>
           )}
 
+          <section className="mb-6 space-y-3">
+            <div className="rounded-lg border-l-2 border-blue-400 bg-blue-400/10 p-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-300">Personal Email</p>
+              <p className="font-semibold text-blue-300">{user.email}</p>
+              <p className="mt-0.5 text-xs italic text-gray-400">For internal admin reference</p>
+            </div>
+            <div className="rounded-lg border-l-2 border-[#48bb78] bg-[#48bb78]/10 p-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-[#48bb78]">Work Email</p>
+              {user.workEmail ? (
+                <>
+                  <p className="font-semibold text-[#48bb78]">📧 {user.workEmail}</p>
+                  <p className="mt-0.5 text-xs italic text-gray-400">Created {formatDate(user.workEmailCreatedAt)}</p>
+                </>
+              ) : (
+                <p className="font-semibold text-gray-400">Not yet created</p>
+              )}
+            </div>
+          </section>
+
           <section className="mb-6">
             <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-[#d4a574]">
               Basic Information
@@ -167,21 +185,6 @@ function UserDetailsModal({ isOpen, user, onClose, onViewRequest }) {
               <div className="flex items-center justify-between gap-4">
                 <dt className="text-gray-400">Manager</dt>
                 <dd className="font-medium text-white">{user.manager || 'No manager'}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-gray-400">Work Email</dt>
-                <dd className="text-right font-medium">
-                  {user.workEmail ? (
-                    <span className="inline-block rounded border border-[#48bb78]/40 bg-[#48bb78]/10 px-2 py-1 text-xs font-semibold text-[#48bb78]">
-                      📧 {user.workEmail}
-                      <span className="mt-0.5 block font-normal text-[#48bb78]/70">
-                        Created {formatDate(user.workEmailCreatedAt)}
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="text-gray-400">Not yet created</span>
-                  )}
-                </dd>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <dt className="text-gray-400">Date Onboarded</dt>

@@ -31,7 +31,9 @@ export function getStatusStyle(status) {
  * UsersTable Component
  *
  * Table display of users with all details.
- * Shows: Name, Email, Status, Date Onboarded, Date Offboarded, Actions.
+ * Shows: Name, Work Email, Status, Date Onboarded, Date Offboarded, Actions.
+ * The user's personal email is intentionally not shown here - it's only
+ * surfaced in UserDetailsModal, labeled for admin reference.
  *
  * @component
  * @param {Array} users - Array of user objects
@@ -39,10 +41,9 @@ export function getStatusStyle(status) {
  * @param {Function} onViewDetails - Callback to view a user's details
  * @param {Function} onViewRequest - Callback to view a pending user's platform checklist
  * @param {Function} onSubmitOffboard - Callback to offboard an active user
- * @param {Function} onSendWelcomeEmail - Callback to send the welcome email to an active user
  * @returns {React.ReactElement} UsersTable component
  */
-function UsersTable({ users, pendingOffboardEmails, onViewDetails, onViewRequest, onSubmitOffboard, onSendWelcomeEmail }) {
+function UsersTable({ users, pendingOffboardEmails, onViewDetails, onViewRequest, onSubmitOffboard }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-[#d4a574]/30 shadow-lg">
       <table className="w-full min-w-[900px] table-fixed border-collapse bg-[#1a365d]">
@@ -52,7 +53,7 @@ function UsersTable({ users, pendingOffboardEmails, onViewDetails, onViewRequest
               Name
             </th>
             <th scope="col" className="w-[25%] px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-[#d4a574]">
-              Email
+              Work Email
             </th>
             <th scope="col" className="w-[12%] px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-[#d4a574]">
               Status
@@ -87,12 +88,13 @@ function UsersTable({ users, pendingOffboardEmails, onViewDetails, onViewRequest
                   className="border-b border-[#d4a574]/10 transition-colors hover:bg-white/5"
                 >
                   <td className="px-4 py-3 text-sm font-medium text-white">{user.name}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">
-                    {user.email}
-                    {user.workEmail && (
-                      <div className="mt-1 inline-block rounded border border-[#48bb78]/40 bg-[#48bb78]/10 px-2 py-0.5 text-[#48bb78]">
+                  <td className="px-4 py-3 text-xs">
+                    {user.workEmail ? (
+                      <span className="inline-block rounded border border-[#48bb78]/40 bg-[#48bb78]/10 px-2 py-0.5 font-semibold text-[#48bb78]">
                         📧 {user.workEmail}
-                      </div>
+                      </span>
+                    ) : (
+                      <span className="italic text-gray-400">Not yet created</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -113,7 +115,6 @@ function UsersTable({ users, pendingOffboardEmails, onViewDetails, onViewRequest
                       onViewDetails={onViewDetails}
                       onViewRequest={onViewRequest}
                       onSubmitOffboard={onSubmitOffboard}
-                      onSendWelcomeEmail={onSendWelcomeEmail}
                     />
                   </td>
                 </tr>
@@ -142,7 +143,6 @@ UsersTable.propTypes = {
   onViewDetails: PropTypes.func.isRequired,
   onViewRequest: PropTypes.func.isRequired,
   onSubmitOffboard: PropTypes.func.isRequired,
-  onSendWelcomeEmail: PropTypes.func.isRequired,
 };
 
 export default UsersTable;

@@ -4,18 +4,17 @@ import UsersFilters from './UsersFilters';
 import UsersTable from './UsersTable';
 import UserDetailsModal from './UserDetailsModal';
 import { getAllUsers, getAllRequests, getPendingRequestByEmail } from '../../mockData';
-import { useAuth } from '../../hooks/useAuth';
-import { recordAuditLog } from '../AuditLogs';
 
 const ITEMS_PER_PAGE = 10;
 
 /**
- * Filters a list of users by search term (name, email, or work email,
- * case-insensitive) and status ("all" bypasses the status filter). Both
- * filters apply together.
+ * Filters a list of users by search term (name or work email,
+ * case-insensitive - the user's personal email is intentionally not
+ * displayed or searchable here) and status ("all" bypasses the status
+ * filter). Both filters apply together.
  *
  * @param {Array} users - Users to filter
- * @param {string} searchTerm - Search text to match against name or email
+ * @param {string} searchTerm - Search text to match against name or work email
  * @param {string} statusFilter - Status to filter by, or "all"
  * @returns {Array} The filtered users
  */
@@ -26,7 +25,6 @@ export function filterUsers(users, searchTerm, statusFilter) {
     const matchesSearch =
       normalizedSearch === '' ||
       user.name.toLowerCase().includes(normalizedSearch) ||
-      user.email.toLowerCase().includes(normalizedSearch) ||
       (user.workEmail && user.workEmail.toLowerCase().includes(normalizedSearch));
 
     const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
@@ -95,7 +93,6 @@ export function getRequestIdByEmail(email) {
  */
 function ManageUsers() {
   const navigate = useNavigate();
-  const loggedInUser = useAuth();
   const [users] = useState(getAllUsers);
   const [pendingOffboardEmails] = useState(
     () =>
@@ -110,7 +107,6 @@ function ManageUsers() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
-  const [welcomeEmailUser, setWelcomeEmailUser] = useState(null);
 
   const filteredUsers = useMemo(
     () => sortUsers(filterUsers(users, searchTerm, statusFilter)),
@@ -171,18 +167,6 @@ function ManageUsers() {
     navigate(`/requests/${requestId}`, { state: { fromManageUsers: true } });
   };
 
-  /** Sends (simulated) the welcome email to an active user's email and logs it. */
-  const handleSendWelcomeEmail = (user) => {
-    recordAuditLog({
-      userEmail: loggedInUser?.email,
-      userName: loggedInUser?.name,
-      department: loggedInUser?.department,
-      action: 'WELCOME_EMAIL_SENT',
-      details: `Welcome email sent to ${user.email}`,
-    });
-    setWelcomeEmailUser(user);
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">
       <header className="mb-6">
@@ -207,38 +191,7 @@ function ManageUsers() {
         onViewDetails={handleViewDetails}
         onViewRequest={handleViewRequest}
         onSubmitOffboard={handleSubmitOffboard}
-        onSendWelcomeEmail={handleSendWelcomeEmail}
       />
-
-      {welcomeEmailUser && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
-          onClick={() => setWelcomeEmailUser(null)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-xl border border-[#d4a574]/30 bg-[#1a365d] p-6 text-center shadow-2xl"
-          >
-            <div className="mb-2 text-4xl" aria-hidden="true">📧</div>
-            <h2 className="mb-3 text-lg font-bold text-white">Welcome Email Sent</h2>
-            <p className="mb-4 text-sm text-gray-300">
-              A welcome email has been sent to <strong>{welcomeEmailUser.email}</strong>
-              {welcomeEmailUser.workEmail && (
-                <> with their work email, <strong>{welcomeEmailUser.workEmail}</strong>.</>
-              )}
-            </p>
-            <button
-              type="button"
-              onClick={() => setWelcomeEmailUser(null)}
-              className="rounded-lg bg-[#d4a574] px-4 py-2 text-sm font-bold text-[#1a365d] transition-colors hover:bg-[#c99a63]"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
 
       <UserDetailsModal
         isOpen={showUserModal}
