@@ -10,6 +10,7 @@ import {
   withTimelineEvent,
   calculateRequestSLA,
   getSLAStatusText,
+  generateWorkEmail,
 } from '../../mockData';
 import { useAuth } from '../../hooks/useAuth';
 import { recordAuditLog } from '../AuditLogs';
@@ -133,6 +134,8 @@ function RequestDetails() {
 
     const failed = Math.random() < AUTOMATION_FAILURE_CHANCE;
     const errorMessage = `Failed to provision ${platformName} - authentication timeout`;
+    const isAzureAd = platformName === 'Azure AD';
+    const workEmail = isAzureAd ? generateWorkEmail(request.employeeName) : null;
     let updated;
 
     if (failed) {
@@ -148,11 +151,22 @@ function RequestDetails() {
         ...request,
         platforms: request.platforms.map((p) =>
           p.name === platformName
-            ? { ...p, status: 'completed', completedBy: null, completedAt: new Date().toISOString(), error: null }
+            ? {
+                ...p,
+                status: 'completed',
+                completedBy: null,
+                completedAt: new Date().toISOString(),
+                error: null,
+                ...(isAzureAd ? { workEmail, workEmailCreatedAt: new Date().toISOString() } : {}),
+              }
             : p
         ),
       };
-      updated = withTimelineEvent(updated, `Platform provisioned automatically: ${platformName}`, 'completed');
+      updated = withTimelineEvent(
+        updated,
+        isAzureAd ? `Azure AD account created: ${workEmail}` : `Platform provisioned automatically: ${platformName}`,
+        'completed'
+      );
     }
 
     saveRequest(updated);
@@ -166,6 +180,8 @@ function RequestDetails() {
         status: 'FAILED',
       });
       setPlatformModal({ platformName, mode: 'error' });
+    } else if (isAzureAd) {
+      logWorkflowEvent('AZURE_ACCOUNT_CREATED', `Azure account created - ${workEmail}`, { platformName, workEmail });
     } else {
       logWorkflowEvent('PLATFORM_PROVISIONED_AUTOMATED', `${platformName} provisioned automatically for ${updated.employeeName}`, { platformName });
     }
@@ -191,11 +207,19 @@ function RequestDetails() {
   const confirmManualOnboard = () => {
     if (!platformModal || !request) return;
     const platformName = platformModal.platformName;
+    const isAzureAd = platformName === 'Azure AD';
+    const workEmail = isAzureAd ? generateWorkEmail(request.employeeName) : null;
     let updated = {
       ...request,
       platforms: request.platforms.map((p) =>
         p.name === platformName
-          ? { ...p, status: 'completed', completedBy: loggedInUser?.name || 'Unknown', completedAt: new Date().toISOString() }
+          ? {
+              ...p,
+              status: 'completed',
+              completedBy: loggedInUser?.name || 'Unknown',
+              completedAt: new Date().toISOString(),
+              ...(isAzureAd ? { workEmail, workEmailCreatedAt: new Date().toISOString() } : {}),
+            }
           : p
       ),
     };
@@ -394,6 +418,12 @@ function RequestDetails() {
                     {p.completedBy ? `Provisioned by ${p.completedBy}` : 'Provisioned automatically'} · {formatDateTime(p.completedAt)}
                   </p>
                 )}
+                {p.status === 'completed' && p.name === 'Azure AD' && p.workEmail && (
+                  <p className="mt-2 inline-block rounded border border-[#48bb78]/40 bg-[#48bb78]/10 px-3 py-1.5 text-xs font-semibold text-[#48bb78]">
+                    📧 Work Email: <strong>{p.workEmail}</strong>
+                    <span className="ml-1 font-normal text-[#48bb78]/70">(created {formatDateTime(p.workEmailCreatedAt)})</span>
+                  </p>
+                )}
                 {p.status === 'failed' && p.jiraTicketId && (
                   <p className="mt-1 text-xs text-purple-300">🎫 Jira ticket {p.jiraTicketId} created</p>
                 )}
@@ -543,6 +573,11 @@ function RequestDetails() {
             <h2 className="mb-3 text-lg font-bold text-white">Trigger Platform Onboarding</h2>
             <p className="mb-6 text-sm text-gray-300">
               Trigger automated onboarding for <strong>{platformModal.platformName}</strong>?
+              {platformModal.platformName === 'Azure AD' && (
+                <span className="mt-2 block text-xs text-gray-400">
+                  This will create a work email in the form firstname@thecreditpros.com.
+                </span>
+              )}
             </p>
             <div className="flex justify-end gap-3">
               <button

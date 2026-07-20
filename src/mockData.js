@@ -758,6 +758,7 @@ export function buildActivatedUser(request) {
   const existing = getAllUsers().find(
     (u) => u.email.toLowerCase() === request.email.toLowerCase()
   );
+  const azurePlatform = request.platforms.find((p) => p.name === 'Azure AD');
   return {
     id: existing ? existing.id : getNextUserId(),
     name: request.employeeName,
@@ -772,6 +773,8 @@ export function buildActivatedUser(request) {
     }),
     dateOffboarded: null,
     platforms: request.platforms.map((p) => p.name),
+    workEmail: azurePlatform?.workEmail || existing?.workEmail || null,
+    workEmailCreatedAt: azurePlatform?.workEmailCreatedAt || existing?.workEmailCreatedAt || null,
   };
 }
 
@@ -891,6 +894,19 @@ export function getSLAStatusText(sla) {
   return sla.isViolated
     ? `🔴 SLA violated (${formatDurationHoursMinutes(sla.elapsedMs)} total)`
     : `✅ SLA passed (${formatDurationHoursMinutes(sla.elapsedMs)})`;
+}
+
+/**
+ * Simulates the Azure AD account-creation step of onboarding: derives a
+ * work email from the employee's first name. Real integration would call
+ * the Azure API instead and return whatever mailbox it actually provisions.
+ *
+ * @param {string} fullName - Employee's full name (e.g. "Sonny Llarena")
+ * @returns {string} Work email, e.g. "sonny@thecreditpros.com"
+ */
+export function generateWorkEmail(fullName) {
+  const firstName = (fullName || '').trim().split(/\s+/)[0]?.toLowerCase() || 'user';
+  return `${firstName}@thecreditpros.com`;
 }
 
 /**
@@ -1041,6 +1057,7 @@ const mockData = {
   formatDurationHoursMinutes,
   calculateRequestSLA,
   getSLAStatusText,
+  generateWorkEmail,
   getMonthRange,
   getQuarterRange,
   getYearToDateRange,

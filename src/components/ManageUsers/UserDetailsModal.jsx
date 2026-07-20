@@ -169,6 +169,21 @@ function UserDetailsModal({ isOpen, user, onClose, onViewRequest }) {
                 <dd className="font-medium text-white">{user.manager || 'No manager'}</dd>
               </div>
               <div className="flex items-center justify-between gap-4">
+                <dt className="text-gray-400">Work Email</dt>
+                <dd className="text-right font-medium">
+                  {user.workEmail ? (
+                    <span className="inline-block rounded border border-[#48bb78]/40 bg-[#48bb78]/10 px-2 py-1 text-xs font-semibold text-[#48bb78]">
+                      📧 {user.workEmail}
+                      <span className="mt-0.5 block font-normal text-[#48bb78]/70">
+                        Created {formatDate(user.workEmailCreatedAt)}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">Not yet created</span>
+                  )}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
                 <dt className="text-gray-400">Date Onboarded</dt>
                 <dd className="font-medium text-white">{formatDate(user.dateOnboarded)}</dd>
               </div>
@@ -233,6 +248,8 @@ UserDetailsModal.propTypes = {
     dateOnboarded: PropTypes.string,
     dateOffboarded: PropTypes.string,
     platforms: PropTypes.arrayOf(PropTypes.string),
+    workEmail: PropTypes.string,
+    workEmailCreatedAt: PropTypes.string,
   }),
   onClose: PropTypes.func.isRequired,
   onViewRequest: PropTypes.func,

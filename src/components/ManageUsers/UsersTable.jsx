@@ -86,7 +86,14 @@ function UsersTable({ users, pendingOffboardEmails, onViewDetails, onViewRequest
                   className="border-b border-[#d4a574]/10 transition-colors hover:bg-white/5"
                 >
                   <td className="px-4 py-3 text-sm font-medium text-white">{user.name}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400">{user.email}</td>
+                  <td className="px-4 py-3 text-xs text-gray-400">
+                    {user.email}
+                    {user.workEmail && (
+                      <div className="mt-1 inline-block rounded border border-[#48bb78]/40 bg-[#48bb78]/10 px-2 py-0.5 text-[#48bb78]">
+                        📧 {user.workEmail}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <span
                       className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${getStatusStyle(
@@ -126,6 +133,7 @@ UsersTable.propTypes = {
       status: PropTypes.oneOf(['pending', 'active', 'inactive']).isRequired,
       dateOnboarded: PropTypes.string.isRequired,
       dateOffboarded: PropTypes.string,
+      workEmail: PropTypes.string,
     })
   ).isRequired,
   pendingOffboardEmails: PropTypes.instanceOf(Set),
