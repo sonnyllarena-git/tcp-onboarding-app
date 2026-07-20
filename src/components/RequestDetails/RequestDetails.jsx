@@ -13,6 +13,29 @@ import { useAuth } from '../../hooks/useAuth';
 import { recordAuditLog } from '../AuditLogs';
 import { NotFoundPage } from '../ErrorState';
 
+/**
+ * Formats an ISO datetime string as "Mon D, YYYY at H:MM AM/PM".
+ * Falls back to "Unknown" for a missing value.
+ * @param {string} [isoDateTime]
+ * @returns {string}
+ */
+function formatDateTime(isoDateTime) {
+  if (!isoDateTime) {
+    return 'Unknown';
+  }
+  const parsed = new Date(isoDateTime);
+  if (Number.isNaN(parsed.getTime())) {
+    return isoDateTime;
+  }
+  return parsed.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).replace(',', ' at');
+}
+
 function RequestDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -60,6 +83,9 @@ function RequestDetails() {
     }
 
     updated.status = 'completed';
+    updated.approvedBy = loggedInUser?.name || 'Unknown';
+    updated.approvedByRole = loggedInUser?.role || 'Unknown';
+    updated.completedAt = new Date().toISOString();
 
     if (isOffboarding) {
       // The employee stays active while the request is pending/in-progress
@@ -161,6 +187,42 @@ function RequestDetails() {
           )}
         </div>
       </div>
+
+      <div className="bg-[#1a365d] border-l-4 border-l-[#d4a574] border border-[#d4a574]/30 rounded-lg p-6 mb-6">
+        <h2 className="text-xl font-bold text-white mb-4">📝 Submission Information</h2>
+        <div className="bg-[#0d1b30] rounded p-4 space-y-1 text-gray-300 text-sm">
+          <p>
+            <span className="text-gray-400">Submitted By: </span>
+            <span className="font-semibold text-white">
+              {request.submittedBy || 'Unknown'}
+              {request.submittedByRole ? ` (${request.submittedByRole})` : ''}
+            </span>
+          </p>
+          <p>
+            <span className="text-gray-400">Submitted At: </span>
+            <span className="font-semibold text-white">{formatDateTime(request.createdAt)}</span>
+          </p>
+        </div>
+      </div>
+
+      {request.status === 'completed' && (
+        <div className="bg-[#1a365d] border-l-4 border-l-[#48bb78] border border-[#d4a574]/30 rounded-lg p-6 mb-6">
+          <h2 className="text-xl font-bold text-white mb-4">✅ Approval Information</h2>
+          <div className="bg-[#0d1b30] rounded p-4 space-y-1 text-gray-300 text-sm">
+            <p>
+              <span className="text-gray-400">Approved By: </span>
+              <span className="font-semibold text-white">
+                {request.approvedBy || 'Unknown'}
+                {request.approvedByRole ? ` (${request.approvedByRole})` : ''}
+              </span>
+            </p>
+            <p>
+              <span className="text-gray-400">Approved At: </span>
+              <span className="font-semibold text-white">{formatDateTime(request.completedAt)}</span>
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="bg-[#1a365d] border border-[#d4a574]/30 rounded-lg p-6 mb-6">
         <h2 className="text-xl font-bold text-white mb-4">Platforms</h2>
