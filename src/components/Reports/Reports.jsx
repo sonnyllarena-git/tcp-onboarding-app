@@ -1,6 +1,44 @@
 import React, { useState, useMemo } from 'react';
-import { getAllRequests, getAllUsers, calculateRequestSLA, PLATFORMS } from '../../mockData';
+import {
+  getAllRequests,
+  getAllUsers,
+  calculateRequestSLA,
+  PLATFORMS,
+  getMonthRange,
+  getQuarterRange,
+  getYearToDateRange,
+  getMonthsInRange,
+  getRequestsInDateRange,
+  compareMetrics,
+} from '../../mockData';
 import { getAllAuditLogs } from '../AuditLogs';
+
+const PERIOD_OPTIONS = [
+  { id: 'thisMonth', label: 'This Month' },
+  { id: 'previousMonth', label: 'Previous Month' },
+  { id: 'thisQuarter', label: 'This Quarter' },
+  { id: 'thisYear', label: 'This Year' },
+];
+
+/**
+ * Resolves a period id to its current and comparison date ranges.
+ *
+ * @param {string} periodId
+ * @returns {{ current: {start: Date, end: Date, label: string}, previous: {start: Date, end: Date, label: string}, supportsMonthlyBreakdown: boolean }}
+ */
+export function resolvePeriodRanges(periodId) {
+  switch (periodId) {
+    case 'previousMonth':
+      return { current: getMonthRange(1), previous: getMonthRange(2), supportsMonthlyBreakdown: false };
+    case 'thisQuarter':
+      return { current: getQuarterRange(0), previous: getQuarterRange(1), supportsMonthlyBreakdown: true };
+    case 'thisYear':
+      return { current: getYearToDateRange(0), previous: getYearToDateRange(1), supportsMonthlyBreakdown: true };
+    case 'thisMonth':
+    default:
+      return { current: getMonthRange(0), previous: getMonthRange(1), supportsMonthlyBreakdown: false };
+  }
+}
 
 const STATUS_COLORS = {
   active: '#48bb78',
@@ -232,6 +270,30 @@ export function buildDepartmentBreakdownReport(requests) {
   return departments;
 }
 
+/**
+ * Overall (onboarding + offboarding combined) completion rate, average
+ * completion time, and SLA compliance rate for a set of requests - the
+ * three metrics the period-over-period comparison tracks.
+ *
+ * @param {Array} requestsSubset
+ * @returns {{completionRate: number, avgCompletionHours: number, slaComplianceRate: number}}
+ */
+export function buildOverallSummary(requestsSubset) {
+  const completed = requestsSubset.filter((r) => r.status === 'completed');
+  const hours = completed
+    .map((r) => calculateRequestSLA(r))
+    .filter(Boolean)
+    .map((sla) => sla.elapsedMs / 3600000);
+  const avgCompletionHours = hours.length ? hours.reduce((sum, h) => sum + h, 0) / hours.length : 0;
+  const sla = buildSLAStatusReport(requestsSubset);
+
+  return {
+    completionRate: requestsSubset.length ? (completed.length / requestsSubset.length) * 100 : 0,
+    avgCompletionHours,
+    slaComplianceRate: parseFloat(sla.complianceRate),
+  };
+}
+
 /** A single stat tile used throughout every report tab. */
 function MetricTile({ label, value, tone }) {
   const toneClass =
@@ -240,6 +302,35 @@ function MetricTile({ label, value, tone }) {
     <div className="rounded-lg bg-[#0d1b30] p-4 text-center">
       <div className={`text-2xl font-bold ${toneClass}`}>{value}</div>
       <div className="mt-1 text-[11px] uppercase tracking-wide text-gray-400">{label}</div>
+    </div>
+  );
+}
+
+/**
+ * Current-vs-previous-period metric tile with a trend arrow and %
+ * change. `invert` flips "higher is better" to "lower is better" (e.g.
+ * average completion time, where a smaller number is the improvement).
+ */
+function ComparisonTile({ label, current, previous, suffix = '', invert = false }) {
+  const cmp = compareMetrics(current, previous, invert);
+  const arrow = cmp.trend === 'up' ? '▲' : cmp.trend === 'down' ? '▼' : '—';
+  const arrowClass = cmp.trend === 'up' ? 'text-green-400' : cmp.trend === 'down' ? 'text-red-400' : 'text-gray-400';
+  return (
+    <div className="rounded-lg bg-[#0d1b30] p-4">
+      <div className="text-[11px] uppercase tracking-wide text-gray-400">{label}</div>
+      <div className="mt-1 flex items-baseline gap-2">
+        <span className="text-2xl font-bold text-white">
+          {current.toFixed(1)}
+          {suffix}
+        </span>
+        <span className={`text-sm font-bold ${arrowClass}`} aria-hidden="true">
+          {arrow} {cmp.changePct === null ? 'n/a' : `${Math.abs(cmp.changePct).toFixed(1)}%`}
+        </span>
+      </div>
+      <div className="mt-1 text-xs text-gray-500">
+        Previous period: {previous.toFixed(1)}
+        {suffix}
+      </div>
     </div>
   );
 }
@@ -340,10 +431,28 @@ function BarList({ title, data }) {
 
 function Reports() {
   const [activeTab, setActiveTab] = useState('overview');
+  const [period, setPeriod] = useState('thisMonth');
+  const [showComparison, setShowComparison] = useState(false);
+  const [showMonthlyBreakdown, setShowMonthlyBreakdown] = useState(false);
 
-  const requests = useMemo(() => getAllRequests(), []);
+  const allRequests = useMemo(() => getAllRequests(), []);
   const users = useMemo(() => getAllUsers(), []);
-  const auditLogs = useMemo(() => getAllAuditLogs(), []);
+  const allAuditLogs = useMemo(() => getAllAuditLogs(), []);
+
+  const { current: currentRange, previous: previousRange, supportsMonthlyBreakdown } = useMemo(
+    () => resolvePeriodRanges(period),
+    [period]
+  );
+
+  const requests = useMemo(() => getRequestsInDateRange(allRequests, currentRange), [allRequests, currentRange]);
+  const previousPeriodRequests = useMemo(
+    () => getRequestsInDateRange(allRequests, previousRange),
+    [allRequests, previousRange]
+  );
+  const auditLogs = useMemo(
+    () => getRequestsInDateRange(allAuditLogs, currentRange, 'timestampIso'),
+    [allAuditLogs, currentRange]
+  );
 
   const onboarding = useMemo(() => buildPerformanceReport(requests, 'Onboarding'), [requests]);
   const offboarding = useMemo(() => buildPerformanceReport(requests, 'Offboarding'), [requests]);
@@ -354,6 +463,24 @@ function Reports() {
   const errorAnalysis = useMemo(() => buildErrorAnalysisReport(auditLogs), [auditLogs]);
   const departmentBreakdown = useMemo(() => buildDepartmentBreakdownReport(requests), [requests]);
 
+  const currentSummary = useMemo(() => buildOverallSummary(requests), [requests]);
+  const previousSummary = useMemo(() => buildOverallSummary(previousPeriodRequests), [previousPeriodRequests]);
+
+  const monthlyBreakdown = useMemo(() => {
+    if (!supportsMonthlyBreakdown) return [];
+    return getMonthsInRange(currentRange.start, currentRange.end).map((month) => {
+      const monthRequests = getRequestsInDateRange(allRequests, month);
+      return {
+        label: month.label,
+        onboarding: monthRequests.filter((r) => r.type === 'Onboarding').length,
+        offboarding: monthRequests.filter((r) => r.type === 'Offboarding').length,
+        completed: monthRequests.filter((r) => r.status === 'completed').length,
+      };
+    });
+  }, [allRequests, currentRange, supportsMonthlyBreakdown]);
+
+  // User status is a point-in-time snapshot, not tied to a request date, so
+  // it intentionally isn't scoped to the selected reporting period.
   const userSummary = useMemo(() => {
     const active = users.filter((u) => u.status === 'active').length;
     const pending = users.filter((u) => u.status === 'pending').length;
@@ -388,6 +515,7 @@ function Reports() {
 
   const handleExportCSV = () => {
     const rows = [
+      ['Report Period', currentRange.label],
       ['Metric', 'Value'],
       ['Total Users', userSummary.totalUsers],
       ['Active Users', userSummary.active],
@@ -430,6 +558,88 @@ function Reports() {
           📥 Export as CSV
         </button>
       </div>
+
+      <div className="mb-6 flex flex-wrap items-end gap-4 rounded-xl border border-[#d4a574]/30 bg-white/5 p-4">
+        <div>
+          <label htmlFor="report-period" className="mb-1 block text-xs font-semibold text-gray-300">
+            Choose Report Period
+          </label>
+          <select
+            id="report-period"
+            value={period}
+            onChange={(event) => setPeriod(event.target.value)}
+            className="rounded-lg border border-[#d4a574]/40 bg-[#0d1b30] px-4 py-2 text-sm text-white focus:border-[#d4a574] focus:outline-none"
+          >
+            {PERIOD_OPTIONS.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-gray-400">{currentRange.label}</p>
+        </div>
+
+        <label className="flex items-center gap-2 pb-2 text-sm text-gray-200">
+          <input
+            type="checkbox"
+            checked={showComparison}
+            onChange={(event) => setShowComparison(event.target.checked)}
+            className="h-4 w-4 rounded border-[#d4a574]/40 bg-[#0d1b30] text-[#d4a574] focus:ring-[#d4a574]"
+          />
+          Compare to Previous Period
+        </label>
+
+        {supportsMonthlyBreakdown && (
+          <label className="flex items-center gap-2 pb-2 text-sm text-gray-200">
+            <input
+              type="checkbox"
+              checked={showMonthlyBreakdown}
+              onChange={(event) => setShowMonthlyBreakdown(event.target.checked)}
+              className="h-4 w-4 rounded border-[#d4a574]/40 bg-[#0d1b30] text-[#d4a574] focus:ring-[#d4a574]"
+            />
+            Show Monthly Breakdown
+          </label>
+        )}
+      </div>
+
+      {showComparison && (
+        <div className="mb-6 rounded-xl border border-[#d4a574]/30 bg-[#1a365d] p-4">
+          <h2 className="mb-3 text-sm font-bold text-white">
+            {currentRange.label} vs. {previousRange.label}
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <ComparisonTile
+              label="Completion Rate"
+              current={currentSummary.completionRate}
+              previous={previousSummary.completionRate}
+              suffix="%"
+            />
+            <ComparisonTile
+              label="Avg Completion Time"
+              current={currentSummary.avgCompletionHours}
+              previous={previousSummary.avgCompletionHours}
+              suffix="h"
+              invert
+            />
+            <ComparisonTile
+              label="SLA Compliance"
+              current={currentSummary.slaComplianceRate}
+              previous={previousSummary.slaComplianceRate}
+              suffix="%"
+            />
+          </div>
+        </div>
+      )}
+
+      {showMonthlyBreakdown && supportsMonthlyBreakdown && (
+        <div className="mb-6 rounded-xl border border-[#d4a574]/30 bg-[#1a365d] p-4">
+          <h2 className="mb-3 text-sm font-bold text-white">Monthly Breakdown</h2>
+          <SimpleTable
+            columns={['Month', 'Onboarding', 'Offboarding', 'Completed']}
+            rows={monthlyBreakdown.map((m) => [m.label, m.onboarding, m.offboarding, m.completed])}
+          />
+        </div>
+      )}
 
       <div className="mb-6 flex flex-wrap gap-2 overflow-x-auto">
         {REPORT_TABS.map((tab) => (

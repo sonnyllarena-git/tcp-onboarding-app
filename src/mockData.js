@@ -182,7 +182,7 @@ export const MOCK_ACCOUNTS = [
   { id: 'acc-1', name: 'Sarah Miller', email: 'sarah.miller@thecreditpros.com', role: 'USER', department: 'HR' },
   { id: 'acc-2', name: 'Emma Davis', email: 'emma.davis@thecreditpros.com', role: 'USER', department: 'Finance' },
   { id: 'acc-3', name: 'John Doe', email: 'john.doe@thecreditpros.com', role: 'ADMIN', department: 'IT' },
-  { id: 'acc-4', name: 'Michael Lee', email: 'michael.lee@thecreditpros.com', role: 'ADMIN', department: 'IT' },
+  { id: 'acc-4', name: 'Sonny Llarena', email: 'sonnyl@thecreditpros.com', role: 'ADMIN', department: 'IT' },
 ];
 
 /**
@@ -893,6 +893,111 @@ export function getSLAStatusText(sla) {
     : `✅ SLA passed (${formatDurationHoursMinutes(sla.elapsedMs)})`;
 }
 
+/**
+ * Calendar month range, N months back from a reference date.
+ *
+ * @param {number} [monthsAgo] - 0 = this month, 1 = previous month, etc.
+ * @param {Date} [referenceDate]
+ * @returns {{start: Date, end: Date, label: string}}
+ */
+export function getMonthRange(monthsAgo = 0, referenceDate = new Date()) {
+  const year = referenceDate.getFullYear();
+  const month = referenceDate.getMonth() - monthsAgo;
+  const start = new Date(year, month, 1, 0, 0, 0, 0);
+  const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
+  return { start, end, label: start.toLocaleString('en-US', { month: 'long', year: 'numeric' }) };
+}
+
+/**
+ * Calendar quarter range, N quarters back from a reference date.
+ *
+ * @param {number} [quartersAgo] - 0 = this quarter, 1 = previous quarter, etc.
+ * @param {Date} [referenceDate]
+ * @returns {{start: Date, end: Date, label: string}}
+ */
+export function getQuarterRange(quartersAgo = 0, referenceDate = new Date()) {
+  const currentQuarterIndex = Math.floor(referenceDate.getMonth() / 3);
+  const totalQuarterIndex = referenceDate.getFullYear() * 4 + currentQuarterIndex - quartersAgo;
+  const year = Math.floor(totalQuarterIndex / 4);
+  const quarterIndex = ((totalQuarterIndex % 4) + 4) % 4;
+  const start = new Date(year, quarterIndex * 3, 1, 0, 0, 0, 0);
+  const end = new Date(year, quarterIndex * 3 + 3, 0, 23, 59, 59, 999);
+  return { start, end, label: `Q${quarterIndex + 1} ${year}` };
+}
+
+/**
+ * Year-to-date range: Jan 1 through the reference date (this year, or the
+ * same calendar day last year for the "previous period" comparison).
+ *
+ * @param {number} [yearsAgo] - 0 = this year, 1 = last year
+ * @param {Date} [referenceDate]
+ * @returns {{start: Date, end: Date, label: string}}
+ */
+export function getYearToDateRange(yearsAgo = 0, referenceDate = new Date()) {
+  const year = referenceDate.getFullYear() - yearsAgo;
+  const start = new Date(year, 0, 1, 0, 0, 0, 0);
+  const end = yearsAgo === 0 ? referenceDate : new Date(year, referenceDate.getMonth(), referenceDate.getDate(), 23, 59, 59, 999);
+  return { start, end, label: `Year-to-Date ${year}` };
+}
+
+/**
+ * Splits a date range into its constituent calendar months, for the
+ * "monthly breakdown" view of a quarter/year report.
+ *
+ * @param {Date} rangeStart
+ * @param {Date} rangeEnd
+ * @returns {Array<{start: Date, end: Date, label: string}>}
+ */
+export function getMonthsInRange(rangeStart, rangeEnd) {
+  const months = [];
+  let cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+  while (cursor <= rangeEnd) {
+    const start = new Date(cursor.getFullYear(), cursor.getMonth(), 1, 0, 0, 0, 0);
+    const end = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59, 999);
+    months.push({ start, end, label: start.toLocaleString('en-US', { month: 'long', year: 'numeric' }) });
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+  return months;
+}
+
+/**
+ * Filters a list of records to those whose `dateField` falls within
+ * `range` (inclusive).
+ *
+ * @param {Array} items
+ * @param {{start: Date, end: Date}} range
+ * @param {string} [dateField]
+ * @returns {Array}
+ */
+export function getRequestsInDateRange(items, range, dateField = 'createdAt') {
+  return items.filter((item) => {
+    const raw = item[dateField];
+    if (!raw) return false;
+    const parsed = new Date(raw);
+    return parsed >= range.start && parsed <= range.end;
+  });
+}
+
+/**
+ * Percent change and trend direction between a current and previous
+ * numeric metric value ("higher is better" framing - flip `invert` for
+ * metrics where lower is better, e.g. average completion time).
+ *
+ * @param {number} current
+ * @param {number} previous
+ * @param {boolean} [invert]
+ * @returns {{current: number, previous: number, changePct: number|null, trend: 'up'|'down'|'flat'}}
+ */
+export function compareMetrics(current, previous, invert = false) {
+  const changePct = previous === 0 ? null : ((current - previous) / previous) * 100;
+  let trend = 'flat';
+  if (changePct !== null && Math.abs(changePct) >= 0.05) {
+    const improved = invert ? current < previous : current > previous;
+    trend = improved ? 'up' : 'down';
+  }
+  return { current, previous, changePct, trend };
+}
+
 const mockData = {
   PLATFORM_ACTIONS,
   PLATFORMS,
@@ -936,6 +1041,12 @@ const mockData = {
   formatDurationHoursMinutes,
   calculateRequestSLA,
   getSLAStatusText,
+  getMonthRange,
+  getQuarterRange,
+  getYearToDateRange,
+  getMonthsInRange,
+  getRequestsInDateRange,
+  compareMetrics,
 };
 
 export default mockData;

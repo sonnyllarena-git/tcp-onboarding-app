@@ -10,7 +10,7 @@ const TEST_ACCOUNTS = [
   { email: 'sarah.miller@thecreditpros.com', role: 'USER' },
   { email: 'emma.davis@thecreditpros.com', role: 'USER' },
   { email: 'john.doe@thecreditpros.com', role: 'ADMIN' },
-  { email: 'michael.lee@thecreditpros.com', role: 'ADMIN' },
+  { email: 'sonnyl@thecreditpros.com', role: 'ADMIN' },
 ];
 
 /**
