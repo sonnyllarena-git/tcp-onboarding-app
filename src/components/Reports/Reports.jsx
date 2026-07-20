@@ -1,6 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { useAuth } from '../../hooks/useAuth';
-import { ForbiddenPage } from '../ErrorState';
 import { getAllRequests, getAllUsers, calculateRequestSLA, PLATFORMS } from '../../mockData';
 import { getAllAuditLogs } from '../AuditLogs';
 
@@ -341,7 +339,6 @@ function BarList({ title, data }) {
 }
 
 function Reports() {
-  const user = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
 
   const requests = useMemo(() => getAllRequests(), []);
@@ -388,10 +385,6 @@ function Reports() {
     }, {});
     return { totalActions: auditLogs.length, actionBreakdown };
   }, [auditLogs]);
-
-  if (!user || user.role !== 'ADMIN') {
-    return <ForbiddenPage />;
-  }
 
   const handleExportCSV = () => {
     const rows = [
