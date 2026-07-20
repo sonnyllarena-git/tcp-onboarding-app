@@ -67,13 +67,15 @@ function RequestDetails() {
     setLoading(false);
   }, [id]);
 
-  const logWorkflowEvent = (action, details) => {
+  const logWorkflowEvent = (action, details, extra = {}) => {
     recordAuditLog({
       userEmail: loggedInUser?.email,
       userName: loggedInUser?.name,
       department: loggedInUser?.department,
       action,
       details,
+      requestId: request?.id,
+      ...extra,
     });
   };
 
@@ -100,7 +102,7 @@ function RequestDetails() {
     updated = withTimelineEvent(updated, `Platform manually offboarded: ${platformName}`, 'completed');
     saveRequest(updated);
     setRequest(updated);
-    logWorkflowEvent('PLATFORM_OFFBOARDED_MANUAL', `${platformName} manually offboarded for ${updated.employeeName}`);
+    logWorkflowEvent('PLATFORM_OFFBOARDED_MANUAL', `${platformName} manually offboarded for ${updated.employeeName}`, { platformName });
     setOffboardPlatformToConfirm(null);
   };
 
@@ -127,10 +129,10 @@ function RequestDetails() {
     );
 
     const failed = Math.random() < AUTOMATION_FAILURE_CHANCE;
+    const errorMessage = `Failed to provision ${platformName} - authentication timeout`;
     let updated;
 
     if (failed) {
-      const errorMessage = `Failed to provision ${platformName} - authentication timeout`;
       updated = {
         ...request,
         platforms: request.platforms.map((p) =>
@@ -155,10 +157,14 @@ function RequestDetails() {
     setAutomatingPlatform(null);
 
     if (failed) {
-      logWorkflowEvent('PLATFORM_PROVISION_FAILED', `${platformName} automation failed for ${updated.employeeName}`);
+      logWorkflowEvent('PLATFORM_PROVISION_FAILED', `${platformName} automation failed for ${updated.employeeName}`, {
+        platformName,
+        errorMessage,
+        status: 'FAILED',
+      });
       setPlatformModal({ platformName, mode: 'error' });
     } else {
-      logWorkflowEvent('PLATFORM_PROVISIONED_AUTOMATED', `${platformName} provisioned automatically for ${updated.employeeName}`);
+      logWorkflowEvent('PLATFORM_PROVISIONED_AUTOMATED', `${platformName} provisioned automatically for ${updated.employeeName}`, { platformName });
     }
   };
 
@@ -172,7 +178,10 @@ function RequestDetails() {
     };
     saveRequest(updated);
     setRequest(updated);
-    logWorkflowEvent('JIRA_TICKET_CREATED', `Jira ticket ${ticketId} created for ${platformName} provisioning failure (${updated.employeeName})`);
+    logWorkflowEvent('JIRA_TICKET_CREATED', `Jira ticket ${ticketId} created for ${platformName} provisioning failure (${updated.employeeName})`, {
+      platformName,
+      jiraTicketId: ticketId,
+    });
     setPlatformModal({ platformName, mode: 'error' });
   };
 
@@ -190,7 +199,7 @@ function RequestDetails() {
     updated = withTimelineEvent(updated, `Platform manually provisioned: ${platformName}`, 'completed');
     saveRequest(updated);
     setRequest(updated);
-    logWorkflowEvent('PLATFORM_PROVISIONED_MANUAL', `${platformName} manually provisioned by ${loggedInUser?.name} for ${updated.employeeName}`);
+    logWorkflowEvent('PLATFORM_PROVISIONED_MANUAL', `${platformName} manually provisioned by ${loggedInUser?.name} for ${updated.employeeName}`, { platformName });
     setPlatformModal(null);
   };
 

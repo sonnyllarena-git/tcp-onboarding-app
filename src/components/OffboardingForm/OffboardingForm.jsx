@@ -143,6 +143,7 @@ function OffboardingForm() {
         userName: loggedInUser?.name || 'Unknown User',
         department: loggedInUser?.department || 'Unknown',
         action: 'OFFBOARDING_SUBMITTED',
+        requestId: newRequest.id,
         details: `${formData.employeeName} — ${formData.department}`,
       });
 

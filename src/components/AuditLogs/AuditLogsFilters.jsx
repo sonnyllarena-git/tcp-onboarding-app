@@ -16,6 +16,8 @@ const INPUT_CLASSES =
  * @param {string} searchTerm - Current search term
  * @param {Function} onSearchChange - Callback when the search term changes
  * @param {Object} filters - Current filter values
+ * @param {string} filters.requestId - Request id substring to match, or ""
+ * @param {string} filters.userName - User name substring to match, or ""
  * @param {string} filters.dateFrom - "YYYY-MM-DD", or "" for no lower bound
  * @param {string} filters.dateTo - "YYYY-MM-DD", or "" for no upper bound
  * @param {string} filters.actionType - Selected action type, or "all"
@@ -54,6 +56,34 @@ function AuditLogsFilters({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <label htmlFor="audit-request-id" className="mb-1 block text-xs font-semibold text-gray-300">
+            Request ID
+          </label>
+          <input
+            id="audit-request-id"
+            type="text"
+            value={filters.requestId}
+            onChange={(event) => handleFieldChange('requestId', event.target.value)}
+            placeholder="e.g. 105"
+            className={INPUT_CLASSES}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="audit-user-name" className="mb-1 block text-xs font-semibold text-gray-300">
+            User Name
+          </label>
+          <input
+            id="audit-user-name"
+            type="text"
+            value={filters.userName}
+            onChange={(event) => handleFieldChange('userName', event.target.value)}
+            placeholder="e.g. John Doe"
+            className={INPUT_CLASSES}
+          />
+        </div>
+
         <div>
           <label htmlFor="audit-date-from" className="mb-1 block text-xs font-semibold text-gray-300">
             From
@@ -133,6 +163,8 @@ AuditLogsFilters.propTypes = {
   searchTerm: PropTypes.string.isRequired,
   onSearchChange: PropTypes.func.isRequired,
   filters: PropTypes.shape({
+    requestId: PropTypes.string.isRequired,
+    userName: PropTypes.string.isRequired,
     dateFrom: PropTypes.string.isRequired,
     dateTo: PropTypes.string.isRequired,
     actionType: PropTypes.string.isRequired,

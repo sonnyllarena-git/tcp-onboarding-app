@@ -7,6 +7,8 @@ import AuditLogsTable from './AuditLogsTable';
 const ITEMS_PER_PAGE = 20;
  
 const DEFAULT_FILTERS = {
+  requestId: '',
+  userName: '',
   dateFrom: '',
   dateTo: '',
   actionType: 'all',
@@ -136,24 +138,46 @@ export const ACTION_TYPE_OPTIONS = [...new Set(MOCK_AUDIT_LOGS.map((log) => log.
  
 export function filterAuditLogs(
   logs,
-  { searchTerm = '', dateFrom = '', dateTo = '', actionType = 'all', status = 'all' } = {}
+  {
+    searchTerm = '',
+    requestId = '',
+    userName = '',
+    dateFrom = '',
+    dateTo = '',
+    actionType = 'all',
+    status = 'all',
+  } = {}
 ) {
   const normalizedSearch = searchTerm.trim().toLowerCase();
- 
+  const normalizedRequestId = requestId.trim().toLowerCase();
+  const normalizedUserName = userName.trim().toLowerCase();
+
   return logs.filter((log) => {
     const logDate = log.timestampIso.slice(0, 10);
- 
+
     const matchesSearch =
       normalizedSearch === '' ||
       log.userEmail.toLowerCase().includes(normalizedSearch) ||
       log.action.toLowerCase().includes(normalizedSearch);
- 
+
+    const matchesRequestId =
+      normalizedRequestId === '' || String(log.requestId ?? '').toLowerCase().includes(normalizedRequestId);
+    const matchesUserName =
+      normalizedUserName === '' || (log.userName || '').toLowerCase().includes(normalizedUserName);
     const matchesDateFrom = !dateFrom || logDate >= dateFrom;
     const matchesDateTo = !dateTo || logDate <= dateTo;
     const matchesActionType = actionType === 'all' || log.action === actionType;
     const matchesStatus = status === 'all' || log.status === status;
- 
-    return matchesSearch && matchesDateFrom && matchesDateTo && matchesActionType && matchesStatus;
+
+    return (
+      matchesSearch &&
+      matchesRequestId &&
+      matchesUserName &&
+      matchesDateFrom &&
+      matchesDateTo &&
+      matchesActionType &&
+      matchesStatus
+    );
   });
 }
  

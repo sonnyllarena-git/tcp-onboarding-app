@@ -55,10 +55,13 @@ function AuditLogsTable({ logs }) {
             <th scope="col" className="w-[20%] px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-[#d4a574]">
               User Email
             </th>
-            <th scope="col" className="w-[18%] px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-[#d4a574]">
+            <th scope="col" className="w-[15%] px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-[#d4a574]">
               Action
             </th>
-            <th scope="col" className="w-[25%] px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-[#d4a574]">
+            <th scope="col" className="w-[8%] px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-[#d4a574]">
+              Request
+            </th>
+            <th scope="col" className="w-[22%] px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-[#d4a574]">
               Details
             </th>
             <th scope="col" className="w-[10%] px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-[#d4a574]">
@@ -72,7 +75,7 @@ function AuditLogsTable({ logs }) {
         <tbody>
           {logs.length === 0 ? (
             <tr>
-              <td colSpan={6} className="px-4 py-10 text-center text-sm">
+              <td colSpan={7} className="px-4 py-10 text-center text-sm">
                 <p className="font-semibold text-white">No audit logs found</p>
                 <p className="mt-1 text-gray-400">Try adjusting your filters.</p>
               </td>
@@ -86,7 +89,14 @@ function AuditLogsTable({ logs }) {
                 <td className="px-4 py-3 text-xs text-gray-200">{formatLogTimestamp(log.timestampIso)}</td>
                 <td className="px-4 py-3 text-xs text-gray-300">{log.userEmail}</td>
                 <td className="px-4 py-3 text-xs font-semibold text-white">{log.action}</td>
-                <td className="px-4 py-3 text-xs text-gray-300">{log.details}</td>
+                <td className="px-4 py-3 text-xs text-gray-400">
+                  {log.requestId != null ? <code className="rounded bg-black/30 px-1.5 py-0.5 text-[#d4a574]">{log.requestId}</code> : '-'}
+                </td>
+                <td className="px-4 py-3 text-xs text-gray-300">
+                  <p>{log.details}</p>
+                  {log.errorMessage && <p className="mt-1 text-red-300">❌ {log.errorMessage}</p>}
+                  {log.jiraTicketId && <p className="mt-1 text-purple-300">🎫 {log.jiraTicketId}</p>}
+                </td>
                 <td className="px-4 py-3">
                   <span
                     className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${STATUS_BADGE_STYLES[log.status]}`}
@@ -112,7 +122,10 @@ AuditLogsTable.propTypes = {
       timestampIso: PropTypes.string.isRequired,
       userEmail: PropTypes.string.isRequired,
       action: PropTypes.string.isRequired,
+      requestId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
       details: PropTypes.string.isRequired,
+      errorMessage: PropTypes.string,
+      jiraTicketId: PropTypes.string,
       status: PropTypes.oneOf(['SUCCESS', 'FAILED']).isRequired,
       ipAddress: PropTypes.string.isRequired,
     })

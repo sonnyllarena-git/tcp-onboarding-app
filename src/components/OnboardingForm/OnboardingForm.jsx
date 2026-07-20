@@ -110,6 +110,7 @@ function OnboardingForm() {
         userName: user?.name || 'Unknown User',
         department: user?.department || 'Unknown',
         action: 'ONBOARDING_SUBMITTED',
+        requestId: newRequest.id,
         details: `${formData.employeeName} — ${formData.departmentName}`,
       });
 
