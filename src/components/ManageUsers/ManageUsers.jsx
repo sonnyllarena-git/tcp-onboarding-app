@@ -31,6 +31,26 @@ export function filterUsers(users, searchTerm, statusFilter) {
   });
 }
 
+const STATUS_SORT_ORDER = { active: 0, pending: 1, inactive: 2 };
+
+/**
+ * Sorts users active-first, then pending, then inactive; alphabetically
+ * by name within each status. Applied after filtering, so it holds
+ * regardless of which search/status filter is active.
+ *
+ * @param {Array} users - Users to sort
+ * @returns {Array} A new, sorted array (input is not mutated)
+ */
+export function sortUsers(users) {
+  return [...users].sort((a, b) => {
+    const statusDiff = STATUS_SORT_ORDER[a.status] - STATUS_SORT_ORDER[b.status];
+    if (statusDiff !== 0) {
+      return statusDiff;
+    }
+    return (a.name || '').localeCompare(b.name || '');
+  });
+}
+
 /**
  * Slices a list of users down to the requested page.
  *
@@ -87,7 +107,7 @@ function ManageUsers() {
   const [showUserModal, setShowUserModal] = useState(false);
 
   const filteredUsers = useMemo(
-    () => filterUsers(users, searchTerm, statusFilter),
+    () => sortUsers(filterUsers(users, searchTerm, statusFilter)),
     [users, searchTerm, statusFilter]
   );
 
