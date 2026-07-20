@@ -5,8 +5,16 @@ import Step2OffboardingActions, { validateStep2 } from './Step2OffboardingAction
 import Step3Review from './Step3Review';
 import CancelConfirmationModal from './CancelConfirmationModal';
 import SuccessModal from './SuccessModal';
-import { getMockUserById } from '../../mockData';
+import {
+  getUserByIdMerged,
+  getAllRequests,
+  createOffboardingRequest,
+  withTimelineEvent,
+  saveRequest,
+} from '../../mockData';
+import { recordAuditLog } from '../AuditLogs';
 import { NotFoundPage } from '../ErrorState';
+import { useAuth } from '../../hooks/useAuth';
 
 const TOTAL_STEPS = 3;
 
@@ -52,7 +60,16 @@ function buildInitialFormData(user, userId) {
 function OffboardingForm() {
   const { userId } = useParams();
   const navigate = useNavigate();
-  const user = getMockUserById(userId);
+  const user = getUserByIdMerged(userId);
+  const loggedInUser = useAuth();
+  const pendingOffboardRequest = user
+    ? getAllRequests().find(
+        (r) =>
+          r.type === 'Offboarding' &&
+          r.status === 'pending' &&
+          r.email.toLowerCase() === user.email.toLowerCase()
+      )
+    : null;
 
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState(() => buildInitialFormData(user, userId));
@@ -98,26 +115,45 @@ function OffboardingForm() {
     setSubmitting(true);
     // TODO: Replace with a real API call to submit the offboarding request.
     setTimeout(() => {
-      const requestId = `OFF-${String(Date.now()).slice(-6).padStart(6, '0')}`;
-      const submission = {
-        requestId,
+      const baseRequest = createOffboardingRequest({
         userId: formData.userId,
         employeeName: formData.employeeName,
         email: formData.email,
         department: formData.department,
+        manager: formData.manager,
         offboardingReason: formData.offboardingReason,
         offboardingDate: formData.offboardingDate,
         finalDay: formData.finalDay,
         selectedPlatforms: formData.selectedPlatforms,
-        // TODO: Use the logged-in admin's name once auth context is threaded through here.
-        submittedBy: formData.employeeName,
-        submittedAt: new Date().toISOString(),
-      };
-      console.log('Submitting offboarding request:', submission);
-      setSubmittedRequest(submission);
+        submittedBy: loggedInUser?.name || 'Unknown User',
+        submittedByRole: loggedInUser?.role || 'Unknown',
+        submittedByDept: loggedInUser?.department || 'Unknown',
+      });
+      const newRequest = withTimelineEvent(baseRequest, 'Request Created', 'completed');
+      saveRequest(newRequest);
+
+      // The employee stays active until this request is actually approved
+      // in RequestDetails - mirrors onboarding's own pending -> active
+      // symmetry, and avoids deactivating someone whose offboarding could
+      // still be rejected.
+      recordAuditLog({
+        userEmail: loggedInUser?.email || 'unknown',
+        userName: loggedInUser?.name || 'Unknown User',
+        department: loggedInUser?.department || 'Unknown',
+        action: 'OFFBOARDING_SUBMITTED',
+        details: `${formData.employeeName} — ${formData.department}`,
+      });
+
+      setSubmittedRequest({
+        requestId: newRequest.id,
+        employeeName: newRequest.employeeName,
+        submittedBy: newRequest.submittedBy,
+        submittedAt: newRequest.createdAt,
+        selectedPlatforms: formData.selectedPlatforms,
+      });
       setSubmitting(false);
       setShowSuccessModal(true);
-    }, 2000);
+    }, 1500);
   };
 
   const handleGoToDashboard = () => {
@@ -148,6 +184,34 @@ function OffboardingForm() {
           >
             &larr; Back to Manage Users
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (pendingOffboardRequest) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-2xl rounded-xl border border-[#f56565]/40 bg-[#f56565]/10 p-6">
+          <p role="alert" className="text-sm text-[#f56565]">
+            {user.name} already has a pending offboarding request.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => navigate(`/requests/${pendingOffboardRequest.id}`)}
+              className="rounded-lg bg-[#d4a574] px-4 py-2 text-sm font-bold text-[#1a365d] transition-colors hover:bg-[#c99a63] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d4a574]"
+            >
+              View Request
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/manage-users')}
+              className="rounded-lg border border-[#d4a574] px-4 py-2 text-sm font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574] hover:text-[#1a365d] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d4a574]"
+            >
+              &larr; Back to Manage Users
+            </button>
+          </div>
         </div>
       </div>
     );

@@ -514,6 +514,22 @@ export function getRequestByIdMerged(requestId) {
 }
 
 /**
+ * Finds the pending request (onboarding OR offboarding) matching an
+ * email, if any. A user only ever has one request awaiting approval at a
+ * time, so this is enough to answer "does this person have something in
+ * flight right now?" without needing a separate per-type lookup.
+ * @param {string} email
+ * @returns {Object|null} The matching pending request, or null
+ */
+export function getPendingRequestByEmail(email) {
+  const normalized = (email || '').toLowerCase();
+  return (
+    getAllRequests().find((r) => r.email.toLowerCase() === normalized && r.status === 'pending') ||
+    null
+  );
+}
+
+/**
  * Persists a request: updates it if already tracked at runtime, otherwise
  * adds it. Always writes the full runtime overlay back to localStorage.
  * @param {Object} request
@@ -540,6 +556,18 @@ export function getAllUsers() {
   const merged = MOCK_USERS.map((u) => extraById.get(u.id) || u);
   const newOnly = extra.filter((u) => !MOCK_USERS.some((seed) => seed.id === u.id));
   return [...merged, ...newOnly];
+}
+
+/**
+ * Looks up one user by id from the combined seed + runtime set - unlike
+ * getMockUserById, this also resolves users created or activated at
+ * runtime (e.g. by OnboardingForm/RequestDetails), not just the seed.
+ * @param {number|string} userId
+ * @returns {Object|null} The matching user, or null if not found
+ */
+export function getUserByIdMerged(userId) {
+  const numericId = Number(userId);
+  return getAllUsers().find((u) => u.id === numericId) || null;
 }
 
 /**
@@ -798,8 +826,10 @@ const mockData = {
   getMockDataSummary,
   getAllRequests,
   getRequestByIdMerged,
+  getPendingRequestByEmail,
   saveRequest,
   getAllUsers,
+  getUserByIdMerged,
   saveUser,
   getNextRequestId,
   getNextUserId,
