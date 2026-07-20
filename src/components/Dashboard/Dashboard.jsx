@@ -87,6 +87,10 @@ function Dashboard({ userName = 'User', dataService = mockFetchDashboardData }) 
       navigate('/audit-logs');
       return;
     }
+    if (action === 'Generate Report') {
+      navigate('/reports');
+      return;
+    }
     // TODO: Wire up real navigation/API calls for the remaining actions.
     console.log(`Quick action triggered: ${action}`);
   };

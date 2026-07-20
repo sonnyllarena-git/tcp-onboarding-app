@@ -8,6 +8,8 @@ import {
   buildActivatedUser,
   buildDeactivatedUser,
   withTimelineEvent,
+  calculateRequestSLA,
+  getSLAStatusText,
 } from '../../mockData';
 import { useAuth } from '../../hooks/useAuth';
 import { recordAuditLog } from '../AuditLogs';
@@ -95,7 +97,7 @@ function RequestDetails() {
       ...request,
       platforms: request.platforms.map((p) =>
         p.name === platformName
-          ? { ...p, status: 'completed', completedBy: loggedInUser?.name || 'Unknown', completedAt: new Date().toLocaleString(), error: null }
+          ? { ...p, status: 'completed', completedBy: loggedInUser?.name || 'Unknown', completedAt: new Date().toISOString(), error: null }
           : p
       ),
     };
@@ -145,7 +147,7 @@ function RequestDetails() {
         ...request,
         platforms: request.platforms.map((p) =>
           p.name === platformName
-            ? { ...p, status: 'completed', completedBy: null, completedAt: new Date().toLocaleString(), error: null }
+            ? { ...p, status: 'completed', completedBy: null, completedAt: new Date().toISOString(), error: null }
             : p
         ),
       };
@@ -192,7 +194,7 @@ function RequestDetails() {
       ...request,
       platforms: request.platforms.map((p) =>
         p.name === platformName
-          ? { ...p, status: 'completed', completedBy: loggedInUser?.name || 'Unknown', completedAt: new Date().toLocaleString() }
+          ? { ...p, status: 'completed', completedBy: loggedInUser?.name || 'Unknown', completedAt: new Date().toISOString() }
           : p
       ),
     };
@@ -239,6 +241,12 @@ function RequestDetails() {
   const allPlatformsCompleted = request.platforms.every((p) => p.status === 'completed');
   const activeModalPlatform =
     platformModal && request.platforms.find((p) => p.name === platformModal.platformName);
+  const sla = calculateRequestSLA(request);
+  const slaBannerClass = !sla
+    ? ''
+    : sla.isCompleted
+      ? (sla.isViolated ? 'border-red-500 bg-red-500/10 text-red-300' : 'border-green-500 bg-green-500/10 text-green-300')
+      : (sla.atRisk ? 'border-red-500 bg-red-500/10 text-red-300' : 'border-blue-400 bg-blue-400/10 text-blue-300');
 
   return (
     <div className="p-6 max-w-3xl">
@@ -253,6 +261,15 @@ function RequestDetails() {
           {isOffboarding ? 'Offboarding Request' : 'Onboarding Request'}
         </span>
       </div>
+
+      {sla && (
+        <div className={`mb-6 rounded-lg border px-4 py-2 text-sm font-semibold ${slaBannerClass}`}>
+          {getSLAStatusText(sla)}
+          <span className="ml-2 font-normal text-gray-400">
+            (SLA: {sla.slaLimitMs / 3600000}h {isOffboarding ? 'offboarding' : 'onboarding'})
+          </span>
+        </div>
+      )}
 
       <div className={`bg-[#1a365d] border rounded-lg p-6 mb-6 ${fromManageUsers ? 'border-[#4299e1]' : 'border-[#d4a574]/30'}`}>
         <div className="flex items-center justify-between mb-4">
@@ -361,7 +378,7 @@ function RequestDetails() {
 
                 {p.status === 'completed' && (
                   <p className="mt-1 text-xs text-gray-400">
-                    {p.completedBy ? `Provisioned by ${p.completedBy}` : 'Provisioned automatically'} · {p.completedAt}
+                    {p.completedBy ? `Provisioned by ${p.completedBy}` : 'Provisioned automatically'} · {formatDateTime(p.completedAt)}
                   </p>
                 )}
                 {p.status === 'failed' && p.jiraTicketId && (

@@ -10,6 +10,7 @@ import ManageUsers from './components/ManageUsers/ManageUsers';
 import OffboardingForm from './components/OffboardingForm/OffboardingForm';
 import AuditLogs from './components/AuditLogs/AuditLogs';
 import Settings from './components/Settings/Settings';
+import Reports from './components/Reports/Reports';
 import { AuthProvider, useAuth, useAuthActions } from './hooks/useAuth';
 
 const ROUTE_TITLES = {
@@ -19,6 +20,7 @@ const ROUTE_TITLES = {
   '/manage-users': 'Manage Users',
   '/audit-logs': 'Audit Logs',
   '/settings': 'Settings',
+  '/reports': 'Reports & Analytics',
 };
 
 /**
@@ -65,6 +67,7 @@ function AuthenticatedApp({ userName, onLogout }) {
           <Route path="/offboard/:userId" element={<OffboardingForm />} />
           <Route path="/audit-logs" element={<AuditLogs />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/reports" element={<Reports />} />
           <Route path="/requests" element={<RequestsList />} />
           <Route path="/requests/:id" element={<RequestDetails />} />
           <Route path="*" element={<Navigate to="/" replace />} />

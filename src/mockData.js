@@ -801,6 +801,98 @@ export function buildDeactivatedUser(request) {
   };
 }
 
+/**
+ * ---------------------------------------------------------------------
+ * SLA tracking
+ * ---------------------------------------------------------------------
+ * Onboarding requests are expected to complete within 24 hours of
+ * submission; offboarding within 2 hours (offboarding is far more
+ * time-sensitive - a departing employee's access should close quickly).
+ * Keyed by the request's own `type` field ('Onboarding'/'Offboarding').
+ */
+export const SLA_CONFIG_MS = {
+  Onboarding: 24 * 60 * 60 * 1000,
+  Offboarding: 2 * 60 * 60 * 1000,
+};
+
+/**
+ * Formats a millisecond duration as "Xh Ym" (e.g. "14h 30m").
+ * @param {number} ms - Non-negative duration in milliseconds
+ * @returns {string}
+ */
+export function formatDurationHoursMinutes(ms) {
+  const totalMinutes = Math.max(0, Math.round(ms / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}h ${minutes}m`;
+}
+
+/**
+ * Calculates SLA status for a request, including a per-platform verdict.
+ * A platform not yet completed has no verdict yet (`violated: null`) -
+ * only requests whose deadline has actually passed count against them.
+ * A completed request is only SLA-violated if the request's own total
+ * elapsed time, or any individual platform's completion time, exceeded
+ * the limit.
+ *
+ * @param {Object} request - A request from getAllRequests()
+ * @returns {Object|null} SLA status, or null if the request has no createdAt
+ */
+export function calculateRequestSLA(request) {
+  if (!request || !request.createdAt) {
+    return null;
+  }
+  const slaLimitMs = SLA_CONFIG_MS[request.type] ?? SLA_CONFIG_MS.Onboarding;
+  const submittedMs = new Date(request.createdAt).getTime();
+  const isCompleted = request.status === 'completed';
+  const endMs = isCompleted && request.completedAt ? new Date(request.completedAt).getTime() : Date.now();
+  const elapsedMs = Math.max(0, endMs - submittedMs);
+  const remainingMs = slaLimitMs - elapsedMs;
+
+  const platformSLAs = (request.platforms || []).map((p) => {
+    if (p.status !== 'completed' || !p.completedAt) {
+      return { name: p.name, completed: false, elapsedMs: null, violated: null };
+    }
+    const platformElapsedMs = Math.max(0, new Date(p.completedAt).getTime() - submittedMs);
+    return { name: p.name, completed: true, elapsedMs: platformElapsedMs, violated: platformElapsedMs > slaLimitMs };
+  });
+
+  const anyPlatformViolated = platformSLAs.some((p) => p.violated === true);
+  const isViolated = elapsedMs > slaLimitMs || (isCompleted && anyPlatformViolated);
+
+  return {
+    requestId: request.id,
+    requestType: request.type,
+    slaLimitMs,
+    elapsedMs,
+    remainingMs,
+    isCompleted,
+    isViolated,
+    atRisk: !isCompleted && remainingMs <= 0,
+    platformSLAs,
+  };
+}
+
+/**
+ * Human-readable SLA status line for display (RequestDetails/RequestsList).
+ * @param {Object|null} sla - Result of calculateRequestSLA
+ * @returns {string}
+ */
+export function getSLAStatusText(sla) {
+  if (!sla) {
+    return '';
+  }
+  if (!sla.isCompleted) {
+    if (sla.remainingMs <= 0) {
+      return `🔴 OVERDUE by ${formatDurationHoursMinutes(Math.abs(sla.remainingMs))}`;
+    }
+    return `⏱️ ${formatDurationHoursMinutes(sla.remainingMs)} remaining`;
+  }
+  return sla.isViolated
+    ? `🔴 SLA violated (${formatDurationHoursMinutes(sla.elapsedMs)} total)`
+    : `✅ SLA passed (${formatDurationHoursMinutes(sla.elapsedMs)})`;
+}
+
 const mockData = {
   PLATFORM_ACTIONS,
   PLATFORMS,
@@ -840,6 +932,10 @@ const mockData = {
   buildPendingUser,
   buildActivatedUser,
   buildDeactivatedUser,
+  SLA_CONFIG_MS,
+  formatDurationHoursMinutes,
+  calculateRequestSLA,
+  getSLAStatusText,
 };
 
 export default mockData;
