@@ -5,6 +5,7 @@ import {
   calculateRequestSLA,
   PLATFORMS,
   getMonthRange,
+  getLast12MonthRanges,
   getQuarterRange,
   getYearToDateRange,
   getMonthsInRange,
@@ -15,21 +16,28 @@ import { getAllAuditLogs } from '../AuditLogs';
 
 const PERIOD_OPTIONS = [
   { id: 'thisMonth', label: 'This Month' },
-  { id: 'previousMonth', label: 'Previous Month' },
+  { id: 'selectMonth', label: 'Select Month' },
   { id: 'thisQuarter', label: 'This Quarter' },
   { id: 'thisYear', label: 'This Year' },
 ];
 
 /**
  * Resolves a period id to its current and comparison date ranges.
+ * 'selectMonth' resolves the chosen month (monthsAgo, 1-12) against the
+ * month immediately before it.
  *
  * @param {string} periodId
+ * @param {number} [selectedMonthsAgo] - Only used for 'selectMonth'
  * @returns {{ current: {start: Date, end: Date, label: string}, previous: {start: Date, end: Date, label: string}, supportsMonthlyBreakdown: boolean }}
  */
-export function resolvePeriodRanges(periodId) {
+export function resolvePeriodRanges(periodId, selectedMonthsAgo = 1) {
   switch (periodId) {
-    case 'previousMonth':
-      return { current: getMonthRange(1), previous: getMonthRange(2), supportsMonthlyBreakdown: false };
+    case 'selectMonth':
+      return {
+        current: getMonthRange(selectedMonthsAgo),
+        previous: getMonthRange(selectedMonthsAgo + 1),
+        supportsMonthlyBreakdown: false,
+      };
     case 'thisQuarter':
       return { current: getQuarterRange(0), previous: getQuarterRange(1), supportsMonthlyBreakdown: true };
     case 'thisYear':
@@ -432,16 +440,19 @@ function BarList({ title, data }) {
 function Reports() {
   const [activeTab, setActiveTab] = useState('overview');
   const [period, setPeriod] = useState('thisMonth');
+  const [selectedMonthsAgo, setSelectedMonthsAgo] = useState(1);
   const [showComparison, setShowComparison] = useState(false);
   const [showMonthlyBreakdown, setShowMonthlyBreakdown] = useState(false);
+  const [show12MonthTrend, setShow12MonthTrend] = useState(false);
 
   const allRequests = useMemo(() => getAllRequests(), []);
   const users = useMemo(() => getAllUsers(), []);
   const allAuditLogs = useMemo(() => getAllAuditLogs(), []);
+  const last12Months = useMemo(() => getLast12MonthRanges(), []);
 
   const { current: currentRange, previous: previousRange, supportsMonthlyBreakdown } = useMemo(
-    () => resolvePeriodRanges(period),
-    [period]
+    () => resolvePeriodRanges(period, selectedMonthsAgo),
+    [period, selectedMonthsAgo]
   );
 
   const requests = useMemo(() => getRequestsInDateRange(allRequests, currentRange), [allRequests, currentRange]);
@@ -478,6 +489,22 @@ function Reports() {
       };
     });
   }, [allRequests, currentRange, supportsMonthlyBreakdown]);
+
+  const trendData = useMemo(() => {
+    if (period !== 'selectMonth' || !show12MonthTrend) return [];
+    return last12Months.map((range) => {
+      const monthRequests = getRequestsInDateRange(allRequests, range);
+      const summary = buildOverallSummary(monthRequests);
+      return {
+        label: range.label,
+        total: monthRequests.length,
+        completed: monthRequests.filter((r) => r.status === 'completed').length,
+        pending: monthRequests.filter((r) => r.status !== 'completed').length,
+        completionRate: summary.completionRate,
+        avgCompletionHours: summary.avgCompletionHours,
+      };
+    });
+  }, [allRequests, last12Months, period, show12MonthTrend]);
 
   // User status is a point-in-time snapshot, not tied to a request date, so
   // it intentionally isn't scoped to the selected reporting period.
@@ -579,6 +606,26 @@ function Reports() {
           <p className="mt-1 text-xs text-gray-400">{currentRange.label}</p>
         </div>
 
+        {period === 'selectMonth' && (
+          <div>
+            <label htmlFor="report-select-month" className="mb-1 block text-xs font-semibold text-gray-300">
+              Select Month
+            </label>
+            <select
+              id="report-select-month"
+              value={selectedMonthsAgo}
+              onChange={(event) => setSelectedMonthsAgo(Number(event.target.value))}
+              className="rounded-lg border border-[#d4a574]/40 bg-[#0d1b30] px-4 py-2 text-sm text-white focus:border-[#d4a574] focus:outline-none"
+            >
+              {last12Months.map((range) => (
+                <option key={range.monthsAgo} value={range.monthsAgo}>
+                  {range.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <label className="flex items-center gap-2 pb-2 text-sm text-gray-200">
           <input
             type="checkbox"
@@ -598,6 +645,18 @@ function Reports() {
               className="h-4 w-4 rounded border-[#d4a574]/40 bg-[#0d1b30] text-[#d4a574] focus:ring-[#d4a574]"
             />
             Show Monthly Breakdown
+          </label>
+        )}
+
+        {period === 'selectMonth' && (
+          <label className="flex items-center gap-2 pb-2 text-sm text-gray-200">
+            <input
+              type="checkbox"
+              checked={show12MonthTrend}
+              onChange={(event) => setShow12MonthTrend(event.target.checked)}
+              className="h-4 w-4 rounded border-[#d4a574]/40 bg-[#0d1b30] text-[#d4a574] focus:ring-[#d4a574]"
+            />
+            Show 12-Month Trend
           </label>
         )}
       </div>
@@ -637,6 +696,29 @@ function Reports() {
           <SimpleTable
             columns={['Month', 'Onboarding', 'Offboarding', 'Completed']}
             rows={monthlyBreakdown.map((m) => [m.label, m.onboarding, m.offboarding, m.completed])}
+          />
+        </div>
+      )}
+
+      {period === 'selectMonth' && show12MonthTrend && (
+        <div className="mb-6 rounded-xl border border-[#d4a574]/30 bg-[#1a365d] p-4">
+          <h2 className="mb-3 text-sm font-bold text-white">12-Month Trend</h2>
+          <div className="mb-4">
+            <BarList
+              title="Completion Rate by Month"
+              data={trendData.map((m) => ({ label: m.label, value: m.completionRate }))}
+            />
+          </div>
+          <SimpleTable
+            columns={['Month', 'Total', 'Completed', 'Pending', 'Completion Rate', 'Avg Time (hrs)']}
+            rows={trendData.map((m) => [
+              m.label,
+              m.total,
+              m.completed,
+              m.pending,
+              `${m.completionRate.toFixed(1)}%`,
+              m.avgCompletionHours.toFixed(1),
+            ])}
           />
         </div>
       )}

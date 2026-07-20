@@ -968,6 +968,22 @@ export function getYearToDateRange(yearsAgo = 0, referenceDate = new Date()) {
 }
 
 /**
+ * The last 12 full calendar months before the current one (oldest first),
+ * e.g. for a reference date of July 2026: July 2025 .. June 2026. Used to
+ * populate the Reports "Select Month" dropdown.
+ *
+ * @param {Date} [referenceDate]
+ * @returns {Array<{start: Date, end: Date, label: string, monthsAgo: number}>}
+ */
+export function getLast12MonthRanges(referenceDate = new Date()) {
+  const ranges = [];
+  for (let monthsAgo = 12; monthsAgo >= 1; monthsAgo -= 1) {
+    ranges.push({ ...getMonthRange(monthsAgo, referenceDate), monthsAgo });
+  }
+  return ranges;
+}
+
+/**
  * Splits a date range into its constituent calendar months, for the
  * "monthly breakdown" view of a quarter/year report.
  *
@@ -1071,6 +1087,7 @@ const mockData = {
   generateWorkEmail,
   getRequestWorkEmail,
   getMonthRange,
+  getLast12MonthRanges,
   getQuarterRange,
   getYearToDateRange,
   getMonthsInRange,
