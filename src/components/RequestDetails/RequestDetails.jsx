@@ -13,6 +13,10 @@ import { useAuth } from '../../hooks/useAuth';
 import { recordAuditLog } from '../AuditLogs';
 import { NotFoundPage } from '../ErrorState';
 
+const AUTOMATION_FAILURE_CHANCE = 0.3;
+const AUTOMATION_MIN_DELAY_MS = 2000;
+const AUTOMATION_MAX_EXTRA_DELAY_MS = 1000;
+
 /**
  * Formats an ISO datetime string as "Mon D, YYYY at H:MM AM/PM".
  * Falls back to "Unknown" for a missing value.
@@ -42,9 +46,16 @@ function RequestDetails() {
   const location = useLocation();
   const loggedInUser = useAuth();
   const [request, setRequest] = useState(null);
-  const [approving, setApproving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [platformToConfirm, setPlatformToConfirm] = useState(null);
+
+  // Offboarding: a single confirm modal per not-yet-completed platform.
+  const [offboardPlatformToConfirm, setOffboardPlatformToConfirm] = useState(null);
+
+  // Onboarding: automation trigger -> spinner -> success/failure -> error
+  // options (Jira/manual) -> manual confirm. `platformModal.mode` is one
+  // of 'trigger' | 'error' | 'manual'.
+  const [platformModal, setPlatformModal] = useState(null);
+  const [automatingPlatform, setAutomatingPlatform] = useState(null);
 
   const fromManageUsers = Boolean(location.state?.fromManageUsers);
 
@@ -56,118 +67,157 @@ function RequestDetails() {
     setLoading(false);
   }, [id]);
 
-  // Onboarding only: clicking Approve auto-provisions every platform in
-  // sequence, then activates the user. Offboarding uses a different,
-  // manual-per-platform flow below (handlePlatformClick/handleCompleteOffboarding).
-  const handleApprove = async () => {
-    if (!request) return;
-    setApproving(true);
-
-    let updated = withTimelineEvent(request, 'Request Approved', 'completed');
-    updated.status = 'in-progress';
-    saveRequest(updated);
-    setRequest(updated);
-
-    for (const platform of updated.platforms) {
-      platform.status = 'in-progress';
-      saveRequest(updated);
-      await new Promise(r => setTimeout(r, 1500));
-
-      platform.status = 'completed';
-      platform.completedBy = loggedInUser?.name;
-      platform.completedAt = new Date().toLocaleString();
-      updated = withTimelineEvent(updated, `Platform Provisioned: ${platform.name}`, 'completed');
-      saveRequest(updated);
-      setRequest({ ...updated });
-    }
-
-    updated.status = 'completed';
-    updated.approvedBy = loggedInUser?.name || 'Unknown';
-    updated.approvedByRole = loggedInUser?.role || 'Unknown';
-    updated.completedAt = new Date().toISOString();
-
-    const activated = buildActivatedUser(updated);
-    saveUser(activated);
-    updated = withTimelineEvent(updated, 'User Activated', 'completed');
+  const logWorkflowEvent = (action, details) => {
     recordAuditLog({
       userEmail: loggedInUser?.email,
       userName: loggedInUser?.name,
       department: loggedInUser?.department,
-      action: 'ONBOARDING_APPROVED',
-      details: `${updated.employeeName} onboarding completed`,
+      action,
+      details,
     });
-
-    saveRequest(updated);
-    setRequest(updated);
-    setApproving(false);
   };
 
-  /** Opens the confirmation modal for a not-yet-completed offboarding platform. */
-  const handlePlatformClick = (platformName) => {
-    if (!request || request.status !== 'pending') {
-      return;
-    }
+  // ---- Offboarding: manual-only per platform ----
+
+  const handleOffboardPlatformClick = (platformName) => {
+    if (!request || request.status !== 'pending') return;
     const platform = request.platforms.find((p) => p.name === platformName);
-    if (!platform || platform.status === 'completed') {
-      return;
-    }
-    setPlatformToConfirm(platformName);
+    if (!platform || platform.status === 'completed') return;
+    setOffboardPlatformToConfirm(platformName);
   };
 
-  /** Marks one platform as manually offboarded by the current admin. */
   const confirmManualOffboarding = () => {
-    if (!request || !platformToConfirm) {
-      return;
-    }
+    if (!request || !offboardPlatformToConfirm) return;
+    const platformName = offboardPlatformToConfirm;
     let updated = {
       ...request,
       platforms: request.platforms.map((p) =>
-        p.name === platformToConfirm
+        p.name === platformName
           ? { ...p, status: 'completed', completedBy: loggedInUser?.name || 'Unknown', completedAt: new Date().toLocaleString(), error: null }
           : p
       ),
     };
-    updated = withTimelineEvent(updated, `Platform manually offboarded: ${platformToConfirm}`, 'completed');
+    updated = withTimelineEvent(updated, `Platform manually offboarded: ${platformName}`, 'completed');
     saveRequest(updated);
     setRequest(updated);
-
-    recordAuditLog({
-      userEmail: loggedInUser?.email,
-      userName: loggedInUser?.name,
-      department: loggedInUser?.department,
-      action: 'PLATFORM_OFFBOARDED_MANUAL',
-      details: `${platformToConfirm} manually offboarded for ${updated.employeeName}`,
-    });
-
-    setPlatformToConfirm(null);
+    logWorkflowEvent('PLATFORM_OFFBOARDED_MANUAL', `${platformName} manually offboarded for ${updated.employeeName}`);
+    setOffboardPlatformToConfirm(null);
   };
 
-  /** Finalizes an offboarding request once every platform is manually completed. */
-  const handleCompleteOffboarding = () => {
-    if (!request || !request.platforms.every((p) => p.status === 'completed')) {
-      return;
+  // ---- Onboarding: automation trigger, then manual fallback on failure ----
+
+  const handleOnboardPlatformClick = (platform) => {
+    if (!request || request.status !== 'pending' || automatingPlatform) return;
+    if (platform.status === 'completed') return;
+    if (platform.status === 'failed') {
+      setPlatformModal({ platformName: platform.name, mode: 'error' });
+    } else {
+      setPlatformModal({ platformName: platform.name, mode: 'trigger' });
     }
+  };
+
+  const confirmTriggerAutomation = async () => {
+    if (!platformModal || !request) return;
+    const platformName = platformModal.platformName;
+    setPlatformModal(null);
+    setAutomatingPlatform(platformName);
+
+    await new Promise((resolve) =>
+      setTimeout(resolve, AUTOMATION_MIN_DELAY_MS + Math.random() * AUTOMATION_MAX_EXTRA_DELAY_MS)
+    );
+
+    const failed = Math.random() < AUTOMATION_FAILURE_CHANCE;
+    let updated;
+
+    if (failed) {
+      const errorMessage = `Failed to provision ${platformName} - authentication timeout`;
+      updated = {
+        ...request,
+        platforms: request.platforms.map((p) =>
+          p.name === platformName ? { ...p, status: 'failed', error: errorMessage } : p
+        ),
+      };
+      updated = withTimelineEvent(updated, `Platform automation failed: ${platformName}`, 'in-progress');
+    } else {
+      updated = {
+        ...request,
+        platforms: request.platforms.map((p) =>
+          p.name === platformName
+            ? { ...p, status: 'completed', completedBy: null, completedAt: new Date().toLocaleString(), error: null }
+            : p
+        ),
+      };
+      updated = withTimelineEvent(updated, `Platform provisioned automatically: ${platformName}`, 'completed');
+    }
+
+    saveRequest(updated);
+    setRequest(updated);
+    setAutomatingPlatform(null);
+
+    if (failed) {
+      logWorkflowEvent('PLATFORM_PROVISION_FAILED', `${platformName} automation failed for ${updated.employeeName}`);
+      setPlatformModal({ platformName, mode: 'error' });
+    } else {
+      logWorkflowEvent('PLATFORM_PROVISIONED_AUTOMATED', `${platformName} provisioned automatically for ${updated.employeeName}`);
+    }
+  };
+
+  const handleSendErrorToDev = () => {
+    if (!platformModal || !request) return;
+    const platformName = platformModal.platformName;
+    const ticketId = `TCP-${Math.floor(Math.random() * 10000)}`;
+    const updated = {
+      ...request,
+      platforms: request.platforms.map((p) => (p.name === platformName ? { ...p, jiraTicketId: ticketId } : p)),
+    };
+    saveRequest(updated);
+    setRequest(updated);
+    logWorkflowEvent('JIRA_TICKET_CREATED', `Jira ticket ${ticketId} created for ${platformName} provisioning failure (${updated.employeeName})`);
+    setPlatformModal({ platformName, mode: 'error' });
+  };
+
+  const confirmManualOnboard = () => {
+    if (!platformModal || !request) return;
+    const platformName = platformModal.platformName;
+    let updated = {
+      ...request,
+      platforms: request.platforms.map((p) =>
+        p.name === platformName
+          ? { ...p, status: 'completed', completedBy: loggedInUser?.name || 'Unknown', completedAt: new Date().toLocaleString() }
+          : p
+      ),
+    };
+    updated = withTimelineEvent(updated, `Platform manually provisioned: ${platformName}`, 'completed');
+    saveRequest(updated);
+    setRequest(updated);
+    logWorkflowEvent('PLATFORM_PROVISIONED_MANUAL', `${platformName} manually provisioned by ${loggedInUser?.name} for ${updated.employeeName}`);
+    setPlatformModal(null);
+  };
+
+  // ---- Finalize (either type) once every platform is completed ----
+
+  const handleCompleteRequest = () => {
+    if (!request || !request.platforms.every((p) => p.status === 'completed')) return;
+    const isOffboarding = request.type === 'Offboarding';
 
     let updated = { ...request, status: 'completed' };
     updated.approvedBy = loggedInUser?.name || 'Unknown';
     updated.approvedByRole = loggedInUser?.role || 'Unknown';
     updated.completedAt = new Date().toISOString();
 
-    const deactivated = buildDeactivatedUser(updated);
-    if (deactivated) {
-      saveUser(deactivated);
+    if (isOffboarding) {
+      const deactivated = buildDeactivatedUser(updated);
+      if (deactivated) saveUser(deactivated);
+      updated = withTimelineEvent(updated, 'User Offboarded', 'completed');
+      logWorkflowEvent('OFFBOARDING_APPROVED', `${updated.employeeName} offboarding completed`);
+    } else {
+      saveUser(buildActivatedUser(updated));
+      updated = withTimelineEvent(updated, 'User Activated', 'completed');
+      logWorkflowEvent('ONBOARDING_APPROVED', `${updated.employeeName} onboarding completed`);
     }
-    updated = withTimelineEvent(updated, 'User Offboarded', 'completed');
+
     saveRequest(updated);
     setRequest(updated);
-
-    recordAuditLog({
-      userEmail: loggedInUser?.email,
-      userName: loggedInUser?.name,
-      department: loggedInUser?.department,
-      action: 'OFFBOARDING_APPROVED',
-      details: `${updated.employeeName} offboarding completed`,
-    });
   };
 
   if (loading) return <div className="p-6 text-white">Loading...</div>;
@@ -177,7 +227,9 @@ function RequestDetails() {
   const relatedRequests = getAllRequests().filter(
     (r) => r.id !== request.id && r.email.toLowerCase() === request.email.toLowerCase()
   );
-  const allPlatformsCompleted = isOffboarding && request.platforms.every((p) => p.status === 'completed');
+  const allPlatformsCompleted = request.platforms.every((p) => p.status === 'completed');
+  const activeModalPlatform =
+    platformModal && request.platforms.find((p) => p.name === platformModal.platformName);
 
   return (
     <div className="p-6 max-w-3xl">
@@ -279,35 +331,61 @@ function RequestDetails() {
       )}
 
       <div className="bg-[#1a365d] border border-[#d4a574]/30 rounded-lg p-6 mb-6">
-        <h2 className="text-xl font-bold text-white mb-4">Platforms</h2>
+        <h2 className="text-xl font-bold text-white mb-4">{isOffboarding ? 'Platforms' : 'Platform Provisioning'}</h2>
         <div className="space-y-2">
           {request.platforms?.map((p, i) => {
-            const isClickable = isOffboarding && request.status === 'pending' && p.status !== 'completed';
+            const isPending = request.status === 'pending' && p.status !== 'completed';
             return (
               <div key={i} className="bg-[#0d1b30] p-3 rounded">
                 <div className="flex items-center justify-between">
                   <span className="text-white">{p.name}</span>
                   <span className={`font-semibold ${
                     p.status === 'completed' ? 'text-green-400' :
+                    p.status === 'failed' ? 'text-red-400' :
                     p.status === 'in-progress' ? 'text-blue-400' :
                     'text-gray-400'
                   }`}>
-                    {p.status === 'completed' ? '✅ ' : ''}
+                    {p.status === 'completed' ? '✅ ' : p.status === 'failed' ? '⚠️ ' : ''}
                     {p.status.charAt(0).toUpperCase() + p.status.slice(1)}
                   </span>
                 </div>
-                {isOffboarding && p.status === 'completed' && (
+
+                {p.status === 'completed' && (
                   <p className="mt-1 text-xs text-gray-400">
-                    Offboarded by {p.completedBy} · {p.completedAt}
+                    {p.completedBy ? `Provisioned by ${p.completedBy}` : 'Provisioned automatically'} · {p.completedAt}
                   </p>
                 )}
-                {isClickable && (
+                {p.status === 'failed' && p.jiraTicketId && (
+                  <p className="mt-1 text-xs text-purple-300">🎫 Jira ticket {p.jiraTicketId} created</p>
+                )}
+
+                {isOffboarding && isPending && (
                   <button
                     type="button"
-                    onClick={() => handlePlatformClick(p.name)}
+                    onClick={() => handleOffboardPlatformClick(p.name)}
                     className="mt-2 w-full rounded-lg border border-[#d4a574]/40 bg-transparent px-3 py-1.5 text-xs font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574]/10"
                   >
                     Click to Offboard Manually
+                  </button>
+                )}
+
+                {!isOffboarding && isPending && automatingPlatform === p.name && (
+                  <div className="mt-2 flex items-center gap-2 text-xs font-bold text-blue-300">
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-blue-300 border-t-transparent" />
+                    Triggering automation...
+                  </div>
+                )}
+                {!isOffboarding && isPending && automatingPlatform !== p.name && (
+                  <button
+                    type="button"
+                    onClick={() => handleOnboardPlatformClick(p)}
+                    className={`mt-2 w-full rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
+                      p.status === 'failed'
+                        ? 'border-red-400/50 text-red-300 hover:bg-red-400/10'
+                        : 'border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10'
+                    }`}
+                  >
+                    {p.status === 'failed' ? 'Automation Failed - Retry or Manual' : 'Click to Trigger Automation'}
                   </button>
                 )}
               </div>
@@ -346,35 +424,19 @@ function RequestDetails() {
         </div>
       )}
 
-      {!isOffboarding && request.status === 'pending' && (
-        <button
-          onClick={handleApprove}
-          disabled={approving}
-          className="w-full bg-[#d4a574] text-[#1a365d] font-bold py-3 rounded-lg hover:bg-[#c4956a] disabled:opacity-50 transition-colors"
-        >
-          {approving ? 'Approving & Provisioning...' : 'Approve Request'}
-        </button>
-      )}
-
-      {!isOffboarding && request.status === 'in-progress' && (
-        <div className="bg-blue-900 text-blue-300 p-4 rounded-lg">
-          ⏳ Platform provisioning in progress...
-        </div>
-      )}
-
-      {isOffboarding && request.status === 'pending' && (
+      {request.status === 'pending' && (
         <>
           <button
-            onClick={handleCompleteOffboarding}
+            onClick={handleCompleteRequest}
             disabled={!allPlatformsCompleted}
-            title={!allPlatformsCompleted ? 'Complete all platform offboarding first' : ''}
+            title={!allPlatformsCompleted ? 'Complete all platform provisioning first' : ''}
             className="w-full bg-[#d4a574] text-[#1a365d] font-bold py-3 rounded-lg hover:bg-[#c4956a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            ✓ Complete Request
+            ✓ {isOffboarding ? 'Complete Request' : 'Complete Onboarding Request'}
           </button>
           <p className="mt-2 text-center text-sm text-gray-400">
             {allPlatformsCompleted
-              ? 'All platforms offboarded. Ready to complete request.'
+              ? `All platforms ${isOffboarding ? 'offboarded' : 'provisioned'}. Ready to complete the request.`
               : `Complete all ${request.platforms.filter((p) => p.status !== 'completed').length} remaining platform(s) before completing the request.`}
           </p>
         </>
@@ -386,10 +448,11 @@ function RequestDetails() {
         </div>
       )}
 
-      {platformToConfirm && (
+      {/* Offboarding: manual confirm modal */}
+      {offboardPlatformToConfirm && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
-          onClick={() => setPlatformToConfirm(null)}
+          onClick={() => setOffboardPlatformToConfirm(null)}
         >
           <div
             role="dialog"
@@ -400,12 +463,12 @@ function RequestDetails() {
             <h2 className="mb-3 text-lg font-bold text-white">Confirm Manual Offboarding</h2>
             <p className="mb-6 text-sm text-gray-300">
               Are you sure you want to manually offboard <strong>{request.employeeName}</strong> from{' '}
-              <strong>{platformToConfirm}</strong>?
+              <strong>{offboardPlatformToConfirm}</strong>?
             </p>
             <div className="flex justify-end gap-3">
               <button
                 type="button"
-                onClick={() => setPlatformToConfirm(null)}
+                onClick={() => setOffboardPlatformToConfirm(null)}
                 className="rounded-lg border border-[#d4a574] px-4 py-2 text-sm font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574] hover:text-[#1a365d]"
               >
                 Cancel
@@ -413,6 +476,137 @@ function RequestDetails() {
               <button
                 type="button"
                 onClick={confirmManualOffboarding}
+                className="rounded-lg bg-[#d4a574] px-4 py-2 text-sm font-bold text-[#1a365d] transition-colors hover:bg-[#c99a63]"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Onboarding: trigger-automation confirm modal */}
+      {platformModal?.mode === 'trigger' && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => setPlatformModal(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-xl border border-[#d4a574]/30 bg-[#1a365d] p-6 shadow-2xl"
+          >
+            <h2 className="mb-3 text-lg font-bold text-white">Trigger Platform Onboarding</h2>
+            <p className="mb-6 text-sm text-gray-300">
+              Trigger automated onboarding for <strong>{platformModal.platformName}</strong>?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setPlatformModal(null)}
+                className="rounded-lg border border-[#d4a574] px-4 py-2 text-sm font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574] hover:text-[#1a365d]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmTriggerAutomation}
+                className="rounded-lg bg-[#d4a574] px-4 py-2 text-sm font-bold text-[#1a365d] transition-colors hover:bg-[#c99a63]"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Onboarding: automation-failure error modal (Jira / manual fallback) */}
+      {platformModal?.mode === 'error' && activeModalPlatform && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => setPlatformModal(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-xl border border-red-400/40 bg-[#1a365d] p-6 shadow-2xl"
+          >
+            <h2 className="mb-3 text-lg font-bold text-white">⚠️ Platform Onboarding Failed</h2>
+            <p className="mb-2 text-sm text-gray-300">
+              Failed to provision <strong>{platformModal.platformName}</strong>.
+            </p>
+            <p className="mb-4 rounded-lg border-l-2 border-red-400 bg-red-400/10 p-3 text-sm text-red-300">
+              {activeModalPlatform.error}
+            </p>
+
+            {activeModalPlatform.jiraTicketId ? (
+              <p className="mb-4 text-sm text-purple-300">
+                🎫 Jira ticket {activeModalPlatform.jiraTicketId} created for the dev team.
+              </p>
+            ) : (
+              <p className="mb-4 text-sm text-gray-400">
+                You can send this error to the dev team, or onboard this platform manually.
+              </p>
+            )}
+
+            <div className="flex flex-wrap justify-end gap-3">
+              {!activeModalPlatform.jiraTicketId && (
+                <button
+                  type="button"
+                  onClick={handleSendErrorToDev}
+                  className="rounded-lg border border-purple-400 px-4 py-2 text-sm font-bold text-purple-300 transition-colors hover:bg-purple-400/10"
+                >
+                  Send error to Dev
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setPlatformModal({ platformName: platformModal.platformName, mode: 'manual' })}
+                className="rounded-lg bg-[#d4a574] px-4 py-2 text-sm font-bold text-[#1a365d] transition-colors hover:bg-[#c99a63]"
+              >
+                Manually Onboard
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlatformModal(null)}
+                className="rounded-lg border border-[#d4a574] px-4 py-2 text-sm font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574] hover:text-[#1a365d]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Onboarding: manual-onboard confirm modal */}
+      {platformModal?.mode === 'manual' && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => setPlatformModal(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-xl border border-[#d4a574]/30 bg-[#1a365d] p-6 shadow-2xl"
+          >
+            <h2 className="mb-3 text-lg font-bold text-white">Confirm Manual Onboarding</h2>
+            <p className="mb-6 text-sm text-gray-300">
+              Confirm manual onboarding for <strong>{platformModal.platformName}</strong>?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setPlatformModal(null)}
+                className="rounded-lg border border-[#d4a574] px-4 py-2 text-sm font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574] hover:text-[#1a365d]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmManualOnboard}
                 className="rounded-lg bg-[#d4a574] px-4 py-2 text-sm font-bold text-[#1a365d] transition-colors hover:bg-[#c99a63]"
               >
                 Confirm
