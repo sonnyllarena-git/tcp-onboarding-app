@@ -47,6 +47,7 @@ function RequestDetails() {
   const navigate = useNavigate();
   const location = useLocation();
   const loggedInUser = useAuth();
+  const isAdmin = loggedInUser?.role === 'ADMIN';
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -84,7 +85,7 @@ function RequestDetails() {
   // ---- Offboarding: manual-only per platform ----
 
   const handleOffboardPlatformClick = (platformName) => {
-    if (!request || request.status !== 'pending') return;
+    if (!isAdmin || !request || request.status !== 'pending') return;
     const platform = request.platforms.find((p) => p.name === platformName);
     if (!platform || platform.status === 'completed') return;
     setOffboardPlatformToConfirm(platformName);
@@ -111,7 +112,7 @@ function RequestDetails() {
   // ---- Onboarding: automation trigger, then manual fallback on failure ----
 
   const handleOnboardPlatformClick = (platform) => {
-    if (!request || request.status !== 'pending' || automatingPlatform) return;
+    if (!isAdmin || !request || request.status !== 'pending' || automatingPlatform) return;
     if (platform.status === 'completed') return;
     if (platform.status === 'failed') {
       setPlatformModal({ platformName: platform.name, mode: 'error' });
@@ -208,7 +209,7 @@ function RequestDetails() {
   // ---- Finalize (either type) once every platform is completed ----
 
   const handleCompleteRequest = () => {
-    if (!request || !request.platforms.every((p) => p.status === 'completed')) return;
+    if (!isAdmin || !request || !request.platforms.every((p) => p.status === 'completed')) return;
     const isOffboarding = request.type === 'Offboarding';
 
     let updated = { ...request, status: 'completed' };
@@ -257,8 +258,15 @@ function RequestDetails() {
         >
           ← Back to {fromManageUsers ? 'Manage Users' : 'Requests'}
         </button>
-        <span className="rounded bg-[#0d1b30] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#d4a574]">
-          {isOffboarding ? 'Offboarding Request' : 'Onboarding Request'}
+        <span className="flex items-center gap-2">
+          <span className="rounded bg-[#0d1b30] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#d4a574]">
+            {isOffboarding ? 'Offboarding Request' : 'Onboarding Request'}
+          </span>
+          {!isAdmin && (
+            <span className="rounded bg-[#d4a574]/20 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#d4a574]">
+              View Only
+            </span>
+          )}
         </span>
       </div>
 
@@ -358,6 +366,11 @@ function RequestDetails() {
 
       <div className="bg-[#1a365d] border border-[#d4a574]/30 rounded-lg p-6 mb-6">
         <h2 className="text-xl font-bold text-white mb-4">{isOffboarding ? 'Platforms' : 'Platform Provisioning'}</h2>
+        {!isAdmin && (
+          <div className="mb-4 rounded border-l-4 border-l-[#d4a574] bg-[#d4a574]/10 p-3 text-sm text-[#d4a574]">
+            🔒 Platform management restricted to IT administrators
+          </div>
+        )}
         <div className="space-y-2">
           {request.platforms?.map((p, i) => {
             const isPending = request.status === 'pending' && p.status !== 'completed';
@@ -389,7 +402,9 @@ function RequestDetails() {
                   <button
                     type="button"
                     onClick={() => handleOffboardPlatformClick(p.name)}
-                    className="mt-2 w-full rounded-lg border border-[#d4a574]/40 bg-transparent px-3 py-1.5 text-xs font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574]/10"
+                    disabled={!isAdmin}
+                    title={!isAdmin ? 'Only IT admins can manage platforms' : ''}
+                    className="mt-2 w-full rounded-lg border border-[#d4a574]/40 bg-transparent px-3 py-1.5 text-xs font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574]/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
                   >
                     Click to Offboard Manually
                   </button>
@@ -405,7 +420,9 @@ function RequestDetails() {
                   <button
                     type="button"
                     onClick={() => handleOnboardPlatformClick(p)}
-                    className={`mt-2 w-full rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
+                    disabled={!isAdmin}
+                    title={!isAdmin ? 'Only IT admins can manage platforms' : ''}
+                    className={`mt-2 w-full rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent ${
                       p.status === 'failed'
                         ? 'border-red-400/50 text-red-300 hover:bg-red-400/10'
                         : 'border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10'
@@ -450,7 +467,7 @@ function RequestDetails() {
         </div>
       )}
 
-      {request.status === 'pending' && (
+      {request.status === 'pending' && isAdmin && (
         <>
           <button
             onClick={handleCompleteRequest}
