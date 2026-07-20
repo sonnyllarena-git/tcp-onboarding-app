@@ -16,8 +16,8 @@ const INPUT_CLASSES =
  * @param {string} searchTerm - Current search term
  * @param {Function} onSearchChange - Callback when the search term changes
  * @param {Object} filters - Current filter values
- * @param {string} filters.requestId - Request id substring to match, or ""
- * @param {string} filters.userName - User name substring to match, or ""
+ * @param {string} filters.employeeName - Substring to match against log details (the employee being onboarded/offboarded), or ""
+ * @param {string} filters.userName - Admin/submitter name substring to match, or ""
  * @param {string} filters.dateFrom - "YYYY-MM-DD", or "" for no lower bound
  * @param {string} filters.dateTo - "YYYY-MM-DD", or "" for no upper bound
  * @param {string} filters.actionType - Selected action type, or "all"
@@ -57,22 +57,22 @@ function AuditLogsFilters({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <label htmlFor="audit-request-id" className="mb-1 block text-xs font-semibold text-gray-300">
-            Request ID
+          <label htmlFor="audit-employee-name" className="mb-1 block text-xs font-semibold text-gray-300">
+            Employee Name
           </label>
           <input
-            id="audit-request-id"
+            id="audit-employee-name"
             type="text"
-            value={filters.requestId}
-            onChange={(event) => handleFieldChange('requestId', event.target.value)}
-            placeholder="e.g. 105"
+            value={filters.employeeName}
+            onChange={(event) => handleFieldChange('employeeName', event.target.value)}
+            placeholder="e.g. Ethan Clark"
             className={INPUT_CLASSES}
           />
         </div>
 
         <div>
           <label htmlFor="audit-user-name" className="mb-1 block text-xs font-semibold text-gray-300">
-            User Name
+            Admin / Submitter Name
           </label>
           <input
             id="audit-user-name"
@@ -163,7 +163,7 @@ AuditLogsFilters.propTypes = {
   searchTerm: PropTypes.string.isRequired,
   onSearchChange: PropTypes.func.isRequired,
   filters: PropTypes.shape({
-    requestId: PropTypes.string.isRequired,
+    employeeName: PropTypes.string.isRequired,
     userName: PropTypes.string.isRequired,
     dateFrom: PropTypes.string.isRequired,
     dateTo: PropTypes.string.isRequired,

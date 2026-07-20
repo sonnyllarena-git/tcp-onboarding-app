@@ -7,12 +7,20 @@ import AuditLogsTable from './AuditLogsTable';
 const ITEMS_PER_PAGE = 20;
  
 const DEFAULT_FILTERS = {
-  requestId: '',
+  employeeName: '',
   userName: '',
   dateFrom: '',
   dateTo: '',
   actionType: 'all',
   status: 'all',
+};
+
+const DEFAULT_VISIBLE_COLUMNS = {
+  timestamp: true,
+  userEmail: true,
+  action: true,
+  status: true,
+  ipAddress: true,
 };
  
 /**
@@ -140,7 +148,7 @@ export function filterAuditLogs(
   logs,
   {
     searchTerm = '',
-    requestId = '',
+    employeeName = '',
     userName = '',
     dateFrom = '',
     dateTo = '',
@@ -149,7 +157,7 @@ export function filterAuditLogs(
   } = {}
 ) {
   const normalizedSearch = searchTerm.trim().toLowerCase();
-  const normalizedRequestId = requestId.trim().toLowerCase();
+  const normalizedEmployeeName = employeeName.trim().toLowerCase();
   const normalizedUserName = userName.trim().toLowerCase();
 
   return logs.filter((log) => {
@@ -160,8 +168,12 @@ export function filterAuditLogs(
       log.userEmail.toLowerCase().includes(normalizedSearch) ||
       log.action.toLowerCase().includes(normalizedSearch);
 
-    const matchesRequestId =
-      normalizedRequestId === '' || String(log.requestId ?? '').toLowerCase().includes(normalizedRequestId);
+    // Audit log entries have no dedicated "employee being onboarded/
+    // offboarded" field - that name only ever appears embedded in the
+    // free-text `details` string (e.g. "Ethan Clark - Sales"), so this
+    // filters on `details` rather than a field that doesn't exist.
+    const matchesEmployeeName =
+      normalizedEmployeeName === '' || (log.details || '').toLowerCase().includes(normalizedEmployeeName);
     const matchesUserName =
       normalizedUserName === '' || (log.userName || '').toLowerCase().includes(normalizedUserName);
     const matchesDateFrom = !dateFrom || logDate >= dateFrom;
@@ -171,7 +183,7 @@ export function filterAuditLogs(
 
     return (
       matchesSearch &&
-      matchesRequestId &&
+      matchesEmployeeName &&
       matchesUserName &&
       matchesDateFrom &&
       matchesDateTo &&
@@ -208,6 +220,7 @@ function AuditLogs() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
+  const [visibleColumns, setVisibleColumns] = useState(DEFAULT_VISIBLE_COLUMNS);
  
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 500);
@@ -250,6 +263,10 @@ function AuditLogs() {
   const handlePageChange = (page) => {
     setCurrentPage(Math.min(Math.max(page, 1), totalPages));
   };
+
+  const handleToggleColumn = (column) => {
+    setVisibleColumns((prev) => ({ ...prev, [column]: !prev[column] }));
+  };
  
   return (
     <div className="mx-auto min-h-screen max-w-7xl bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">
@@ -268,14 +285,37 @@ function AuditLogs() {
         onReset={handleReset}
         actionTypeOptions={ACTION_TYPE_OPTIONS}
       />
- 
+
+      <div className="mb-4 rounded-lg border border-[#d4a574]/20 bg-white/5 p-3">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[#d4a574]">Show/Hide Columns</p>
+        <div className="flex flex-wrap gap-4">
+          {Object.entries({
+            timestamp: 'Timestamp',
+            userEmail: 'User Email',
+            action: 'Action',
+            status: 'Status',
+            ipAddress: 'IP Address',
+          }).map(([key, label]) => (
+            <label key={key} className="flex items-center gap-2 text-sm text-gray-300">
+              <input
+                type="checkbox"
+                checked={visibleColumns[key]}
+                onChange={() => handleToggleColumn(key)}
+                className="h-4 w-4 accent-[#d4a574]"
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      </div>
+
       {isLoading ? (
         <p className="rounded-xl border border-[#d4a574]/30 py-10 text-center text-sm text-gray-300">
           Loading audit logs...
         </p>
       ) : (
         <>
-          <AuditLogsTable logs={paginatedLogs} />
+          <AuditLogsTable logs={paginatedLogs} visibleColumns={visibleColumns} />
  
           <nav
             aria-label="Pagination"
