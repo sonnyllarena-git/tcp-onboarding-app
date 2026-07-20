@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { getAllAuditLogs } from '../AuditLogs';
 
 const MAX_ACTIVITIES = 20;
+const LAST_READ_STORAGE_KEY = 'tcp_notifications_last_read';
 
 // Only the onboarding/offboarding workflow events are shown here - the
 // full audit log (logins, CSV imports, platform clicks, ...) is a much
@@ -32,6 +34,40 @@ function getRecentActivities() {
     .filter((log) => RELEVANT_ACTIONS.includes(log.action))
     .sort((a, b) => new Date(b.timestampIso) - new Date(a.timestampIso))
     .slice(0, MAX_ACTIVITIES);
+}
+
+/**
+ * Reads when the admin last opened the notification center. Absent/
+ * unparsable localStorage means nothing has ever been read, so every
+ * activity counts as unread.
+ * @returns {Date}
+ */
+function getLastReadTime() {
+  try {
+    const stored = localStorage.getItem(LAST_READ_STORAGE_KEY);
+    const parsed = stored ? new Date(stored) : new Date(0);
+    return Number.isNaN(parsed.getTime()) ? new Date(0) : parsed;
+  } catch {
+    return new Date(0);
+  }
+}
+
+function setLastReadTimeNow() {
+  try {
+    localStorage.setItem(LAST_READ_STORAGE_KEY, new Date().toISOString());
+  } catch {
+    // localStorage unavailable - the badge just won't persist across a reload.
+  }
+}
+
+/**
+ * Counts activities newer than the last-read timestamp.
+ * @param {Array} activities
+ * @param {Date} lastReadTime
+ * @returns {number}
+ */
+function countUnread(activities, lastReadTime) {
+  return activities.filter((a) => new Date(a.timestampIso) > lastReadTime).length;
 }
 
 /**
@@ -67,9 +103,19 @@ function getTimeAgo(timestampIso) {
  */
 function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
-  const [activities] = useState(getRecentActivities);
-  const [unreadCount, setUnreadCount] = useState(() => getRecentActivities().length);
+  const [activities, setActivities] = useState(getRecentActivities);
+  const [unreadCount, setUnreadCount] = useState(() => countUnread(getRecentActivities(), getLastReadTime()));
   const menuRef = useRef(null);
+  const location = useLocation();
+
+  // Re-check for new activity on every navigation - covers the common
+  // case here (submit/approve is always immediately followed by a
+  // navigate() elsewhere in the app) without needing to poll on a timer.
+  useEffect(() => {
+    const latest = getRecentActivities();
+    setActivities(latest);
+    setUnreadCount(countUnread(latest, getLastReadTime()));
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -93,15 +139,20 @@ function NotificationCenter() {
     };
   }, [isOpen]);
 
-  const handleMarkAllRead = () => {
-    setUnreadCount(0);
+  const handleBellClick = () => {
+    if (!isOpen) {
+      // Opening - mark everything currently shown as read.
+      setLastReadTimeNow();
+      setUnreadCount(0);
+    }
+    setIsOpen((prev) => !prev);
   };
 
   return (
     <div ref={menuRef} className="relative">
       <button
         type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={handleBellClick}
         aria-haspopup="true"
         aria-expanded={isOpen}
         aria-label="Activity notifications"
@@ -164,13 +215,6 @@ function NotificationCenter() {
           </div>
 
           <div className="flex gap-2 border-t border-[#d4a574]/20 bg-black/20 px-4 py-3">
-            <button
-              type="button"
-              onClick={handleMarkAllRead}
-              className="flex-1 rounded-lg bg-[#d4a574]/20 px-3 py-1.5 text-xs font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574]/30 hover:text-white"
-            >
-              Mark All as Read
-            </button>
             <button
               type="button"
               onClick={() => setIsOpen(false)}

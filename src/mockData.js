@@ -678,6 +678,7 @@ export function createOffboardingRequest(formData) {
     userId: formData.userId,
     offboardingReason: formData.offboardingReason,
     finalDay: formData.finalDay,
+    timing: formData.timing || 'immediate',
     createdAt: new Date().toISOString(),
     submittedBy: formData.submittedBy,
     submittedByRole: formData.submittedByRole,

@@ -44,6 +44,7 @@ function RequestDetails() {
   const [request, setRequest] = useState(null);
   const [approving, setApproving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [platformToConfirm, setPlatformToConfirm] = useState(null);
 
   const fromManageUsers = Boolean(location.state?.fromManageUsers);
 
@@ -55,20 +56,18 @@ function RequestDetails() {
     setLoading(false);
   }, [id]);
 
+  // Onboarding only: clicking Approve auto-provisions every platform in
+  // sequence, then activates the user. Offboarding uses a different,
+  // manual-per-platform flow below (handlePlatformClick/handleCompleteOffboarding).
   const handleApprove = async () => {
     if (!request) return;
     setApproving(true);
 
-    const isOffboarding = request.type === 'Offboarding';
-    const approvedAction = isOffboarding ? 'Offboarding Approved' : 'Request Approved';
-
-    let updated = withTimelineEvent(request, approvedAction, 'completed');
+    let updated = withTimelineEvent(request, 'Request Approved', 'completed');
     updated.status = 'in-progress';
     saveRequest(updated);
     setRequest(updated);
 
-    // Simulate platform provisioning (same mechanics for onboarding and
-    // offboarding - only what happens to the user afterward differs).
     for (const platform of updated.platforms) {
       platform.status = 'in-progress';
       saveRequest(updated);
@@ -77,7 +76,7 @@ function RequestDetails() {
       platform.status = 'completed';
       platform.completedBy = loggedInUser?.name;
       platform.completedAt = new Date().toLocaleString();
-      updated = withTimelineEvent(updated, `Platform ${isOffboarding ? 'Disabled' : 'Provisioned'}: ${platform.name}`, 'completed');
+      updated = withTimelineEvent(updated, `Platform Provisioned: ${platform.name}`, 'completed');
       saveRequest(updated);
       setRequest({ ...updated });
     }
@@ -87,38 +86,88 @@ function RequestDetails() {
     updated.approvedByRole = loggedInUser?.role || 'Unknown';
     updated.completedAt = new Date().toISOString();
 
-    if (isOffboarding) {
-      // The employee stays active while the request is pending/in-progress
-      // (see OffboardingForm's handleSubmit) - this is what actually flips
-      // them to inactive, once every platform has finished being disabled.
-      const deactivated = buildDeactivatedUser(updated);
-      if (deactivated) {
-        saveUser(deactivated);
-      }
-      updated = withTimelineEvent(updated, 'User Offboarded', 'completed');
-      recordAuditLog({
-        userEmail: loggedInUser?.email,
-        userName: loggedInUser?.name,
-        department: loggedInUser?.department,
-        action: 'OFFBOARDING_APPROVED',
-        details: `${updated.employeeName} offboarding completed`,
-      });
-    } else {
-      const activated = buildActivatedUser(updated);
-      saveUser(activated);
-      updated = withTimelineEvent(updated, 'User Activated', 'completed');
-      recordAuditLog({
-        userEmail: loggedInUser?.email,
-        userName: loggedInUser?.name,
-        department: loggedInUser?.department,
-        action: 'ONBOARDING_APPROVED',
-        details: `${updated.employeeName} onboarding completed`,
-      });
-    }
+    const activated = buildActivatedUser(updated);
+    saveUser(activated);
+    updated = withTimelineEvent(updated, 'User Activated', 'completed');
+    recordAuditLog({
+      userEmail: loggedInUser?.email,
+      userName: loggedInUser?.name,
+      department: loggedInUser?.department,
+      action: 'ONBOARDING_APPROVED',
+      details: `${updated.employeeName} onboarding completed`,
+    });
 
     saveRequest(updated);
     setRequest(updated);
     setApproving(false);
+  };
+
+  /** Opens the confirmation modal for a not-yet-completed offboarding platform. */
+  const handlePlatformClick = (platformName) => {
+    if (!request || request.status !== 'pending') {
+      return;
+    }
+    const platform = request.platforms.find((p) => p.name === platformName);
+    if (!platform || platform.status === 'completed') {
+      return;
+    }
+    setPlatformToConfirm(platformName);
+  };
+
+  /** Marks one platform as manually offboarded by the current admin. */
+  const confirmManualOffboarding = () => {
+    if (!request || !platformToConfirm) {
+      return;
+    }
+    let updated = {
+      ...request,
+      platforms: request.platforms.map((p) =>
+        p.name === platformToConfirm
+          ? { ...p, status: 'completed', completedBy: loggedInUser?.name || 'Unknown', completedAt: new Date().toLocaleString(), error: null }
+          : p
+      ),
+    };
+    updated = withTimelineEvent(updated, `Platform manually offboarded: ${platformToConfirm}`, 'completed');
+    saveRequest(updated);
+    setRequest(updated);
+
+    recordAuditLog({
+      userEmail: loggedInUser?.email,
+      userName: loggedInUser?.name,
+      department: loggedInUser?.department,
+      action: 'PLATFORM_OFFBOARDED_MANUAL',
+      details: `${platformToConfirm} manually offboarded for ${updated.employeeName}`,
+    });
+
+    setPlatformToConfirm(null);
+  };
+
+  /** Finalizes an offboarding request once every platform is manually completed. */
+  const handleCompleteOffboarding = () => {
+    if (!request || !request.platforms.every((p) => p.status === 'completed')) {
+      return;
+    }
+
+    let updated = { ...request, status: 'completed' };
+    updated.approvedBy = loggedInUser?.name || 'Unknown';
+    updated.approvedByRole = loggedInUser?.role || 'Unknown';
+    updated.completedAt = new Date().toISOString();
+
+    const deactivated = buildDeactivatedUser(updated);
+    if (deactivated) {
+      saveUser(deactivated);
+    }
+    updated = withTimelineEvent(updated, 'User Offboarded', 'completed');
+    saveRequest(updated);
+    setRequest(updated);
+
+    recordAuditLog({
+      userEmail: loggedInUser?.email,
+      userName: loggedInUser?.name,
+      department: loggedInUser?.department,
+      action: 'OFFBOARDING_APPROVED',
+      details: `${updated.employeeName} offboarding completed`,
+    });
   };
 
   if (loading) return <div className="p-6 text-white">Loading...</div>;
@@ -128,6 +177,7 @@ function RequestDetails() {
   const relatedRequests = getAllRequests().filter(
     (r) => r.id !== request.id && r.email.toLowerCase() === request.email.toLowerCase()
   );
+  const allPlatformsCompleted = isOffboarding && request.platforms.every((p) => p.status === 'completed');
 
   return (
     <div className="p-6 max-w-3xl">
@@ -170,6 +220,10 @@ function RequestDetails() {
           </div>
           {isOffboarding ? (
             <>
+              <div>
+                <p className="text-sm text-gray-400">Timing</p>
+                <p className="font-semibold capitalize">{request.timing || 'immediate'}</p>
+              </div>
               <div>
                 <p className="text-sm text-gray-400">Offboarding Reason</p>
                 <p className="font-semibold">{request.offboardingReason}</p>
@@ -227,19 +281,38 @@ function RequestDetails() {
       <div className="bg-[#1a365d] border border-[#d4a574]/30 rounded-lg p-6 mb-6">
         <h2 className="text-xl font-bold text-white mb-4">Platforms</h2>
         <div className="space-y-2">
-          {request.platforms?.map((p, i) => (
-            <div key={i} className="flex items-center justify-between bg-[#0d1b30] p-3 rounded">
-              <span className="text-white">{p.name}</span>
-              <span className={`font-semibold ${
-                p.status === 'completed' ? 'text-green-400' :
-                p.status === 'in-progress' ? 'text-blue-400' :
-                'text-gray-400'
-              }`}>
-                {p.status === 'completed' ? '✅ ' : ''}
-                {p.status.charAt(0).toUpperCase() + p.status.slice(1)}
-              </span>
-            </div>
-          ))}
+          {request.platforms?.map((p, i) => {
+            const isClickable = isOffboarding && request.status === 'pending' && p.status !== 'completed';
+            return (
+              <div key={i} className="bg-[#0d1b30] p-3 rounded">
+                <div className="flex items-center justify-between">
+                  <span className="text-white">{p.name}</span>
+                  <span className={`font-semibold ${
+                    p.status === 'completed' ? 'text-green-400' :
+                    p.status === 'in-progress' ? 'text-blue-400' :
+                    'text-gray-400'
+                  }`}>
+                    {p.status === 'completed' ? '✅ ' : ''}
+                    {p.status.charAt(0).toUpperCase() + p.status.slice(1)}
+                  </span>
+                </div>
+                {isOffboarding && p.status === 'completed' && (
+                  <p className="mt-1 text-xs text-gray-400">
+                    Offboarded by {p.completedBy} · {p.completedAt}
+                  </p>
+                )}
+                {isClickable && (
+                  <button
+                    type="button"
+                    onClick={() => handlePlatformClick(p.name)}
+                    className="mt-2 w-full rounded-lg border border-[#d4a574]/40 bg-transparent px-3 py-1.5 text-xs font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574]/10"
+                  >
+                    Click to Offboard Manually
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -273,25 +346,79 @@ function RequestDetails() {
         </div>
       )}
 
-      {request.status === 'pending' && (
+      {!isOffboarding && request.status === 'pending' && (
         <button
           onClick={handleApprove}
           disabled={approving}
           className="w-full bg-[#d4a574] text-[#1a365d] font-bold py-3 rounded-lg hover:bg-[#c4956a] disabled:opacity-50 transition-colors"
         >
-          {approving ? (isOffboarding ? 'Approving & Disabling Access...' : 'Approving & Provisioning...') : 'Approve Request'}
+          {approving ? 'Approving & Provisioning...' : 'Approve Request'}
         </button>
       )}
 
-      {request.status === 'in-progress' && (
+      {!isOffboarding && request.status === 'in-progress' && (
         <div className="bg-blue-900 text-blue-300 p-4 rounded-lg">
-          ⏳ {isOffboarding ? 'Disabling platform access...' : 'Platform provisioning in progress...'}
+          ⏳ Platform provisioning in progress...
         </div>
+      )}
+
+      {isOffboarding && request.status === 'pending' && (
+        <>
+          <button
+            onClick={handleCompleteOffboarding}
+            disabled={!allPlatformsCompleted}
+            title={!allPlatformsCompleted ? 'Complete all platform offboarding first' : ''}
+            className="w-full bg-[#d4a574] text-[#1a365d] font-bold py-3 rounded-lg hover:bg-[#c4956a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            ✓ Complete Request
+          </button>
+          <p className="mt-2 text-center text-sm text-gray-400">
+            {allPlatformsCompleted
+              ? 'All platforms offboarded. Ready to complete request.'
+              : `Complete all ${request.platforms.filter((p) => p.status !== 'completed').length} remaining platform(s) before completing the request.`}
+          </p>
+        </>
       )}
 
       {request.status === 'completed' && (
         <div className="bg-green-900 text-green-300 p-4 rounded-lg">
           {isOffboarding ? '✅ All platforms disabled. User is now inactive.' : '✅ All platforms provisioned. User is now active.'}
+        </div>
+      )}
+
+      {platformToConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => setPlatformToConfirm(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-xl border border-[#d4a574]/30 bg-[#1a365d] p-6 shadow-2xl"
+          >
+            <h2 className="mb-3 text-lg font-bold text-white">Confirm Manual Offboarding</h2>
+            <p className="mb-6 text-sm text-gray-300">
+              Are you sure you want to manually offboard <strong>{request.employeeName}</strong> from{' '}
+              <strong>{platformToConfirm}</strong>?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setPlatformToConfirm(null)}
+                className="rounded-lg border border-[#d4a574] px-4 py-2 text-sm font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574] hover:text-[#1a365d]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmManualOffboarding}
+                className="rounded-lg bg-[#d4a574] px-4 py-2 text-sm font-bold text-[#1a365d] transition-colors hover:bg-[#c99a63]"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

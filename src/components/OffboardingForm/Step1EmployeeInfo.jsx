@@ -97,6 +97,32 @@ function Step1EmployeeInfo({ formData, onDataChange, onNext, onCancel }) {
       </dl>
 
       <div className="space-y-4">
+        <fieldset>
+          <legend className="mb-1 block text-sm text-gray-300">Offboarding Timing</legend>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 text-sm text-white">
+              <input
+                type="radio"
+                name="timing"
+                value="immediate"
+                checked={(formData.timing || 'immediate') === 'immediate'}
+                onChange={(event) => onDataChange({ timing: event.target.value })}
+              />
+              Immediate (today)
+            </label>
+            <label className="flex items-center gap-2 text-sm text-white">
+              <input
+                type="radio"
+                name="timing"
+                value="scheduled"
+                checked={formData.timing === 'scheduled'}
+                onChange={(event) => onDataChange({ timing: event.target.value })}
+              />
+              Scheduled for date
+            </label>
+          </div>
+        </fieldset>
+
         <div>
           <label htmlFor="offboardingReason" className="mb-1 block text-sm text-gray-300">
             Offboarding Reason <span className="text-[#f56565]">*</span>

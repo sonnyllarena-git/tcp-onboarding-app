@@ -42,6 +42,7 @@ function buildInitialFormData(user, userId) {
     offboardingReason: '',
     offboardingDate: getTodayIsoDate(),
     finalDay: '',
+    timing: 'immediate',
     selectedPlatforms: [],
     confirmationChecked: false,
   };
@@ -124,6 +125,7 @@ function OffboardingForm() {
         offboardingReason: formData.offboardingReason,
         offboardingDate: formData.offboardingDate,
         finalDay: formData.finalDay,
+        timing: formData.timing,
         selectedPlatforms: formData.selectedPlatforms,
         submittedBy: loggedInUser?.name || 'Unknown User',
         submittedByRole: loggedInUser?.role || 'Unknown',
