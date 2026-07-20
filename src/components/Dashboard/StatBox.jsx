@@ -34,13 +34,21 @@ export function getStatColor(color) {
  * @param {string} icon - Icon/emoji to show
  * @param {'up'|'down'} trend - Trend direction
  * @param {'green'|'orange'|'red'|'blue'} color - Color variant
+ * @param {Function} [onClick] - When provided, the card becomes a button that opens a detail view
  * @returns {React.ReactElement} StatBox component
  */
-function StatBox({ label, value, icon, trend, color }) {
+function StatBox({ label, value, icon, trend, color, onClick }) {
   const isTrendingUp = trend === 'up';
+  const Wrapper = onClick ? 'button' : 'div';
 
   return (
-    <div className="rounded-xl bg-white p-5 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-lg dark:bg-[#111827]">
+    <Wrapper
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      className={`w-full rounded-xl bg-white p-5 text-left shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-lg dark:bg-[#111827] ${
+        onClick ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d4a574]' : ''
+      }`}
+    >
       <div className="flex items-start justify-between">
         <span
           className={`flex h-10 w-10 items-center justify-center rounded-full text-xl ${getStatColor(color)}`}
@@ -59,7 +67,8 @@ function StatBox({ label, value, icon, trend, color }) {
       </div>
       <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">{label}</p>
       <p className="text-[28px] font-bold leading-tight text-[#1a365d] dark:text-white">{value}</p>
-    </div>
+      {onClick && <p className="mt-1 text-xs italic text-gray-400">Click to view</p>}
+    </Wrapper>
   );
 }
 
@@ -69,6 +78,7 @@ StatBox.propTypes = {
   icon: PropTypes.string.isRequired,
   trend: PropTypes.oneOf(['up', 'down']).isRequired,
   color: PropTypes.oneOf(['green', 'orange', 'red', 'blue']).isRequired,
+  onClick: PropTypes.func,
 };
 
 export default StatBox;

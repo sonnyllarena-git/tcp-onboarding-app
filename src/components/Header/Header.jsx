@@ -82,14 +82,10 @@ function Header({ title, userName = null, onLogout }) {
           </div>
         </div>
 
-        {/* Center: "Logged in as" greeting - hidden on small screens */}
-        <div className="hidden flex-1 truncate text-center text-sm text-gray-300 md:block">
-          {userName && (
-            <span>
-              Logged in as <strong className="font-semibold text-[#d4a574]">{userName}</strong>
-            </span>
-          )}
-        </div>
+        {/* Center intentionally left empty - the user's name/role already
+            appears in the Dashboard's own greeting and in the hamburger
+            menu below, so repeating it here would be redundant. */}
+        <div className="flex-1" />
 
         {/* Right: Home, Activity (notification bell), and the hamburger menu */}
         <div className="flex items-center gap-2 sm:gap-3">
