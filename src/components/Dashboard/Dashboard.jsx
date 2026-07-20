@@ -2,12 +2,7 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import StatBox from './StatBox';
-import ActivityFeed from './ActivityFeed';
 import QuickActions from './QuickActions';
-
-const HOUR_MS = 60 * 60 * 1000;
-const DAY_MS = 24 * HOUR_MS;
-const now = Date.now();
 
 const MOCK_STATS = [
   { label: 'Active Users', value: 24, icon: '👥', trend: 'up', color: 'green' },
@@ -16,20 +11,11 @@ const MOCK_STATS = [
   { label: 'Failed/Issues', value: 2, icon: '⚠️', trend: 'down', color: 'red' },
 ];
 
-const MOCK_ACTIVITIES = [
-  { timestamp: now - 2 * HOUR_MS, user: 'John Doe', action: 'Onboarded', status: 'completed' },
-  { timestamp: now - 4 * HOUR_MS, user: 'Jane Smith', action: 'Offboarded', status: 'completed' },
-  { timestamp: now - 6 * HOUR_MS, user: 'Bob Johnson', action: 'Pending Review', status: 'pending' },
-  { timestamp: now - 1 * DAY_MS, user: 'Alice Brown', action: 'Onboarded', status: 'completed' },
-  { timestamp: now - 1 * DAY_MS - HOUR_MS, user: 'Charlie Wilson', action: 'Failed', status: 'failed' },
-  { timestamp: now - 2 * DAY_MS, user: 'Emma Davis', action: 'Onboarded', status: 'completed' },
-];
-
-// TODO: Replace with a real API call to fetch dashboard stats and activity.
+// TODO: Replace with a real API call to fetch dashboard stats.
 function mockFetchDashboardData() {
   return new Promise((resolve) => {
     setTimeout(() => {
-      resolve({ stats: MOCK_STATS, activities: MOCK_ACTIVITIES });
+      resolve({ stats: MOCK_STATS });
     }, 400);
   });
 }
@@ -66,7 +52,6 @@ export function getGreeting(hour = new Date().getHours()) {
  */
 function Dashboard({ userName = 'User', dataService = mockFetchDashboardData }) {
   const [stats, setStats] = useState([]);
-  const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -76,7 +61,6 @@ function Dashboard({ userName = 'User', dataService = mockFetchDashboardData }) 
     dataService().then((data) => {
       if (isMounted) {
         setStats(data.stats);
-        setActivities(data.activities);
         setLoading(false);
       }
     });
@@ -152,10 +136,6 @@ function Dashboard({ userName = 'User', dataService = mockFetchDashboardData }) 
 
           <section aria-label="Quick actions">
             <QuickActions onAction={handleQuickAction} />
-          </section>
-
-          <section aria-label="Recent activity">
-            <ActivityFeed activities={activities} />
           </section>
         </div>
       )}

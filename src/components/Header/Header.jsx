@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import tcpLogo from '../../assets/tcp-logo.png';
 import { useAuth } from '../../hooks/useAuth';
+import NotificationCenter from './NotificationCenter';
 
 /**
  * Header Component
@@ -92,6 +93,9 @@ function Header({ title, userName = null, onLogout }) {
           >
             <span aria-hidden="true">⚙️</span> Settings
           </button>
+
+          {/* Notification Bell */}
+          <NotificationCenter />
 
           {/* Logout Button */}
           <button
