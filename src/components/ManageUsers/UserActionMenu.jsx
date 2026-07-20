@@ -9,9 +9,10 @@ import PropTypes from 'prop-types';
  * @param {Function} onViewDetails - View user details (opens modal)
  * @param {Function} onViewRequest - View this user's request (navigate to RequestDetails)
  * @param {Function} onSubmitOffboard - Offboard user (navigate to OffboardingForm)
+ * @param {Function} onSendWelcomeEmail - Send the welcome email to an active user
  * @returns {Array<{label: string, onClick: Function}>} Menu items for this user
  */
-function getMenuItems(user, isPendingOffboard, onViewDetails, onViewRequest, onSubmitOffboard) {
+function getMenuItems(user, isPendingOffboard, onViewDetails, onViewRequest, onSubmitOffboard, onSendWelcomeEmail) {
   if (user.status === 'pending') {
     return [
       { label: 'View Request', onClick: () => onViewRequest(user.id) },
@@ -20,18 +21,16 @@ function getMenuItems(user, isPendingOffboard, onViewDetails, onViewRequest, onS
   }
 
   if (user.status === 'active') {
+    const items = [{ label: 'View Details', onClick: () => onViewDetails(user) }];
     // Already has an offboarding request awaiting approval - offer to view
     // it instead of letting the admin submit a second one.
     if (isPendingOffboard) {
-      return [
-        { label: 'View Details', onClick: () => onViewDetails(user) },
-        { label: 'View Request', onClick: () => onViewRequest(user.id) },
-      ];
+      items.push({ label: 'View Request', onClick: () => onViewRequest(user.id) });
+    } else {
+      items.push({ label: 'Submit Offboard Request', onClick: () => onSubmitOffboard(user.id) });
     }
-    return [
-      { label: 'View Details', onClick: () => onViewDetails(user) },
-      { label: 'Submit Offboard Request', onClick: () => onSubmitOffboard(user.id) },
-    ];
+    items.push({ label: '📧 Send Welcome Email', onClick: () => onSendWelcomeEmail(user) });
+    return items;
   }
 
   // inactive
@@ -51,9 +50,10 @@ function getMenuItems(user, isPendingOffboard, onViewDetails, onViewRequest, onS
  * @param {Function} onViewDetails - Open UserDetailsModal with user data
  * @param {Function} onViewRequest - Navigate to RequestDetails with request ID
  * @param {Function} onSubmitOffboard - Navigate to OffboardingForm with user ID
+ * @param {Function} onSendWelcomeEmail - Send the welcome email to an active user
  * @returns {React.ReactElement} Action menu
  */
-function UserActionMenu({ user, isPendingOffboard, onViewDetails, onViewRequest, onSubmitOffboard }) {
+function UserActionMenu({ user, isPendingOffboard, onViewDetails, onViewRequest, onSubmitOffboard, onSendWelcomeEmail }) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -79,7 +79,7 @@ function UserActionMenu({ user, isPendingOffboard, onViewDetails, onViewRequest,
     };
   }, [isOpen]);
 
-  const menuItems = getMenuItems(user, isPendingOffboard, onViewDetails, onViewRequest, onSubmitOffboard);
+  const menuItems = getMenuItems(user, isPendingOffboard, onViewDetails, onViewRequest, onSubmitOffboard, onSendWelcomeEmail);
 
   const handleItemClick = (onClick) => {
     setIsOpen(false);
@@ -132,6 +132,7 @@ UserActionMenu.propTypes = {
   onViewDetails: PropTypes.func.isRequired,
   onViewRequest: PropTypes.func.isRequired,
   onSubmitOffboard: PropTypes.func.isRequired,
+  onSendWelcomeEmail: PropTypes.func.isRequired,
 };
 
 export default UserActionMenu;

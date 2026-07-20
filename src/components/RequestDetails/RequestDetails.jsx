@@ -11,6 +11,7 @@ import {
   calculateRequestSLA,
   getSLAStatusText,
   generateWorkEmail,
+  getRequestWorkEmail,
 } from '../../mockData';
 import { useAuth } from '../../hooks/useAuth';
 import { recordAuditLog } from '../AuditLogs';
@@ -60,6 +61,8 @@ function RequestDetails() {
   // of 'trigger' | 'error' | 'manual'.
   const [platformModal, setPlatformModal] = useState(null);
   const [automatingPlatform, setAutomatingPlatform] = useState(null);
+
+  const [showWelcomeEmailModal, setShowWelcomeEmailModal] = useState(false);
 
   const fromManageUsers = Boolean(location.state?.fromManageUsers);
 
@@ -256,6 +259,19 @@ function RequestDetails() {
     setRequest(updated);
   };
 
+  // ---- Post-completion: welcome email to the employee's onboarding email ----
+
+  const handleSendWelcomeEmail = () => {
+    if (!isAdmin || !request) return;
+    const sentAt = new Date().toISOString();
+    let updated = { ...request, welcomeEmailSentAt: sentAt };
+    updated = withTimelineEvent(updated, `Welcome email sent to ${request.email}`, 'completed');
+    saveRequest(updated);
+    setRequest(updated);
+    logWorkflowEvent('WELCOME_EMAIL_SENT', `Welcome email sent to ${request.email}`, { status: 'SUCCESS' });
+    setShowWelcomeEmailModal(true);
+  };
+
   if (loading) return <div className="p-6 text-white">Loading...</div>;
   if (!request) return <NotFoundPage />;
 
@@ -319,6 +335,12 @@ function RequestDetails() {
           <div>
             <p className="text-sm text-gray-400">Email</p>
             <p className="font-semibold">{request.email}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400">Work Email</p>
+            <p className={`font-semibold ${getRequestWorkEmail(request) ? 'text-[#48bb78]' : ''}`}>
+              {getRequestWorkEmail(request) || 'Not created yet'}
+            </p>
           </div>
           <div>
             <p className="text-sm text-gray-400">Department</p>
@@ -385,6 +407,29 @@ function RequestDetails() {
               <span className="font-semibold text-white">{formatDateTime(request.completedAt)}</span>
             </p>
           </div>
+        </div>
+      )}
+
+      {!isOffboarding && request.status === 'completed' && (
+        <div className="bg-[#1a365d] border-l-4 border-l-blue-400 border border-[#d4a574]/30 rounded-lg p-6 mb-6">
+          <h2 className="text-xl font-bold text-white mb-2">📧 Send Welcome Email</h2>
+          <p className="mb-4 text-sm text-gray-300">
+            Send a welcome email to <strong>{request.email}</strong> with their work email and setup instructions.
+          </p>
+          <button
+            type="button"
+            onClick={handleSendWelcomeEmail}
+            disabled={!isAdmin}
+            title={!isAdmin ? 'Only IT admins can send the welcome email' : ''}
+            className="rounded-lg border border-blue-400 bg-blue-400/10 px-4 py-2 text-sm font-bold text-blue-300 transition-colors hover:bg-blue-400/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-blue-400/10"
+          >
+            📧 Send Welcome Email
+          </button>
+          {request.welcomeEmailSentAt && (
+            <p className="mt-2 text-xs text-gray-400">
+              ✓ Last sent {formatDateTime(request.welcomeEmailSentAt)}
+            </p>
+          )}
         </div>
       )}
 
@@ -690,6 +735,34 @@ function RequestDetails() {
                 Confirm
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Welcome email confirmation modal */}
+      {showWelcomeEmailModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => setShowWelcomeEmailModal(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-xl border border-[#d4a574]/30 bg-[#1a365d] p-6 text-center shadow-2xl"
+          >
+            <div className="mb-2 text-4xl" aria-hidden="true">📧</div>
+            <h2 className="mb-3 text-lg font-bold text-white">Welcome Email Sent</h2>
+            <p className="mb-4 text-sm text-gray-300">
+              A welcome email has been sent to <strong>{request.email}</strong>
+              
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowWelcomeEmailModal(false)}
+              className="rounded-lg bg-[#d4a574] px-4 py-2 text-sm font-bold text-[#1a365d] transition-colors hover:bg-[#c99a63]"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}

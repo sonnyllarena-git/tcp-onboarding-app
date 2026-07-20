@@ -910,6 +910,17 @@ export function generateWorkEmail(fullName) {
 }
 
 /**
+ * The work email a request's Azure AD platform step has generated so far,
+ * if that step has completed.
+ *
+ * @param {Object} request
+ * @returns {string|null}
+ */
+export function getRequestWorkEmail(request) {
+  return request?.platforms?.find((p) => p.name === 'Azure AD')?.workEmail || null;
+}
+
+/**
  * Calendar month range, N months back from a reference date.
  *
  * @param {number} [monthsAgo] - 0 = this month, 1 = previous month, etc.
@@ -1058,6 +1069,7 @@ const mockData = {
   calculateRequestSLA,
   getSLAStatusText,
   generateWorkEmail,
+  getRequestWorkEmail,
   getMonthRange,
   getQuarterRange,
   getYearToDateRange,

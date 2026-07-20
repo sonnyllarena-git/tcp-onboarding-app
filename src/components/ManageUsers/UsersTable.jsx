@@ -39,9 +39,10 @@ export function getStatusStyle(status) {
  * @param {Function} onViewDetails - Callback to view a user's details
  * @param {Function} onViewRequest - Callback to view a pending user's platform checklist
  * @param {Function} onSubmitOffboard - Callback to offboard an active user
+ * @param {Function} onSendWelcomeEmail - Callback to send the welcome email to an active user
  * @returns {React.ReactElement} UsersTable component
  */
-function UsersTable({ users, pendingOffboardEmails, onViewDetails, onViewRequest, onSubmitOffboard }) {
+function UsersTable({ users, pendingOffboardEmails, onViewDetails, onViewRequest, onSubmitOffboard, onSendWelcomeEmail }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-[#d4a574]/30 shadow-lg">
       <table className="w-full min-w-[900px] table-fixed border-collapse bg-[#1a365d]">
@@ -112,6 +113,7 @@ function UsersTable({ users, pendingOffboardEmails, onViewDetails, onViewRequest
                       onViewDetails={onViewDetails}
                       onViewRequest={onViewRequest}
                       onSubmitOffboard={onSubmitOffboard}
+                      onSendWelcomeEmail={onSendWelcomeEmail}
                     />
                   </td>
                 </tr>
@@ -140,6 +142,7 @@ UsersTable.propTypes = {
   onViewDetails: PropTypes.func.isRequired,
   onViewRequest: PropTypes.func.isRequired,
   onSubmitOffboard: PropTypes.func.isRequired,
+  onSendWelcomeEmail: PropTypes.func.isRequired,
 };
 
 export default UsersTable;

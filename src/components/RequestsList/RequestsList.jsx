@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAllRequests, calculateRequestSLA } from '../../mockData';
+import { getAllRequests, calculateRequestSLA, getRequestWorkEmail } from '../../mockData';
 
 const INITIAL_FILTERS = {
   nameSearch: '',
@@ -10,8 +10,9 @@ const INITIAL_FILTERS = {
 };
 
 /**
- * Filters and sorts requests for display: text search on name/email,
- * exact match on status/type, newest-created first.
+ * Filters and sorts requests for display: text search on name/email
+ * (matches either the request's email or its Azure AD work email, once
+ * created), exact match on status/type, newest-created first.
  *
  * @param {Array} requests - Requests to filter (already merged seed + runtime)
  * @param {Object} filters - { nameSearch, emailSearch, status, type }
@@ -24,7 +25,11 @@ export function filterRequests(requests, filters) {
   return requests
     .filter((req) => {
       const matchesName = !nameSearch || req.employeeName.toLowerCase().includes(nameSearch);
-      const matchesEmail = !emailSearch || req.email.toLowerCase().includes(emailSearch);
+      const workEmail = getRequestWorkEmail(req);
+      const matchesEmail =
+        !emailSearch ||
+        req.email.toLowerCase().includes(emailSearch) ||
+        (workEmail && workEmail.toLowerCase().includes(emailSearch));
       const matchesStatus = filters.status === 'all' || req.status === filters.status;
       const matchesType = filters.type === 'all' || req.type === filters.type;
       return matchesName && matchesEmail && matchesStatus && matchesType;
@@ -70,7 +75,7 @@ function RequestsList() {
           <input
             id="filter-email"
             type="text"
-            placeholder="Search by Email..."
+            placeholder="Personal or work email..."
             value={filters.emailSearch}
             onChange={(e) => handleFilterChange({ emailSearch: e.target.value })}
             className="bg-[#0d1b30] border border-[#d4a574]/40 rounded px-3 py-1.5 text-sm text-white placeholder-gray-500"
@@ -126,6 +131,7 @@ function RequestsList() {
           filteredRequests.map(req => {
             const sla = calculateRequestSLA(req);
             const slaViolated = sla && (sla.isViolated || sla.atRisk);
+            const workEmail = getRequestWorkEmail(req);
             return (
               <div
                 key={req.id}
@@ -136,6 +142,11 @@ function RequestsList() {
                   <div>
                     <p className="text-white font-semibold">{req.employeeName}</p>
                     <p className="text-gray-400 text-sm">{req.type} • {req.email}</p>
+                    {workEmail && (
+                      <p className="mt-1 inline-block rounded border border-[#48bb78]/40 bg-[#48bb78]/10 px-2 py-0.5 text-xs font-semibold text-[#48bb78]">
+                        📧 {workEmail}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     <div className="flex items-center justify-end gap-2">
