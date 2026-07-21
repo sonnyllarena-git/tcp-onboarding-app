@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getAllAuditLogs } from '../AuditLogs';
 
 const MAX_ACTIVITIES = 20;
 const LAST_READ_STORAGE_KEY = 'tcp_notifications_last_read';
 
-// Only the onboarding/offboarding workflow events are shown here - the
-// full audit log (logins, CSV imports, platform clicks, ...) is a much
-// broader admin tool, already available at /audit-logs.
+// Only the onboarding/offboarding/transition workflow events are shown
+// here - the full audit log (logins, CSV imports, platform clicks, ...)
+// is a much broader admin tool, already available at /audit-logs.
 const ACTION_ICONS = {
   ONBOARDING_SUBMITTED: '📝',
   ONBOARDING_APPROVED: '✅',
   OFFBOARDING_SUBMITTED: '📋',
   OFFBOARDING_APPROVED: '✅',
+  TRANSITION_REQUEST_SUBMITTED: '🔄',
+  TRANSITION_COMPLETED: '✅',
 };
 
 const ACTION_LABELS = {
@@ -20,6 +22,8 @@ const ACTION_LABELS = {
   ONBOARDING_APPROVED: 'Onboarding Completed',
   OFFBOARDING_SUBMITTED: 'Offboarding Submitted',
   OFFBOARDING_APPROVED: 'Offboarding Completed',
+  TRANSITION_REQUEST_SUBMITTED: 'Transition Submitted',
+  TRANSITION_COMPLETED: 'Transition Completed',
 };
 
 const RELEVANT_ACTIONS = Object.keys(ACTION_LABELS);
@@ -94,9 +98,10 @@ function getTimeAgo(timestampIso) {
  * NotificationCenter Component
  *
  * Bell icon shown in the Header, next to Logout. Shows a red badge with
- * the count of onboarding/offboarding events since the admin last
- * cleared it; clicking opens a dropdown listing the 20 most recent
- * events (submitted/approved, for both onboarding and offboarding).
+ * the count of onboarding/offboarding/transition events since the admin
+ * last cleared it; clicking opens a dropdown listing the 20 most recent
+ * events. Each row with a linked request (every runtime-created one)
+ * is clickable and navigates straight to that request's details.
  *
  * @component
  * @returns {React.ReactElement} NotificationCenter component
@@ -107,6 +112,7 @@ function NotificationCenter() {
   const [unreadCount, setUnreadCount] = useState(() => countUnread(getRecentActivities(), getLastReadTime()));
   const menuRef = useRef(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Re-check for new activity on every navigation - covers the common
   // case here (submit/approve is always immediately followed by a
@@ -146,6 +152,15 @@ function NotificationCenter() {
       setUnreadCount(0);
     }
     setIsOpen((prev) => !prev);
+  };
+
+  // Runtime-created activities carry a requestId (stamped by
+  // recordAuditLog/logWorkflowEvent at submission/approval time); the
+  // hand-authored seed activities never do, so they're correctly inert.
+  const handleActivityClick = (activity) => {
+    if (!activity.requestId) return;
+    setIsOpen(false);
+    navigate(`/requests/${activity.requestId}`);
   };
 
   return (
@@ -194,7 +209,11 @@ function NotificationCenter() {
               activities.map((activity) => (
                 <div
                   key={activity.id}
-                  className="flex gap-3 border-b border-[#d4a574]/10 px-4 py-3 transition-colors hover:bg-white/5"
+                  onClick={() => handleActivityClick(activity)}
+                  title={activity.requestId ? 'Click to view request' : ''}
+                  className={`flex gap-3 border-b border-[#d4a574]/10 px-4 py-3 transition-colors ${
+                    activity.requestId ? 'cursor-pointer hover:bg-white/5' : 'cursor-default'
+                  }`}
                 >
                   <span className="mt-0.5 text-lg" aria-hidden="true">
                     {ACTION_ICONS[activity.action] || '📌'}

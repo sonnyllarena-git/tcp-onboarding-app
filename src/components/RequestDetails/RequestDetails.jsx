@@ -308,7 +308,7 @@ function RequestDetails() {
       : (sla.atRisk ? 'border-red-500 bg-red-500/10 text-red-300' : 'border-blue-400 bg-blue-400/10 text-blue-300');
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="mx-auto max-w-3xl p-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <button
           onClick={() => navigate(fromManageUsers ? '/manage-users' : '/requests')}

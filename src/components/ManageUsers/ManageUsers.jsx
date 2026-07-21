@@ -190,9 +190,13 @@ function ManageUsers() {
 
   /** A submitted transition doesn't change the user list itself (it only
    * takes effect once completed from RequestDetails) - bumping `version`
-   * just re-derives pendingTransitionEmails so the badge shows immediately. */
+   * just re-derives pendingTransitionEmails so the badge shows immediately.
+   * Deliberately does NOT close the form (no setTransitionUser(null) here) -
+   * TransitionForm stays mounted so its own success modal can render;
+   * closing it prematurely would unmount the form (and that modal with
+   * it) the instant the request is created. The form closes only once
+   * the admin dismisses that modal, via handleCloseTransition. */
   const handleTransitionSuccess = () => {
-    setTransitionUser(null);
     setVersion((v) => v + 1);
   };
 

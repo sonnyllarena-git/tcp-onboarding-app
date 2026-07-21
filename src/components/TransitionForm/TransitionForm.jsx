@@ -501,10 +501,11 @@ function TransitionForm({ user, onClose, onSuccess }) {
 
       {/* Success modal */}
       {submittedRequest && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4" onClick={onClose}>
           <div
             role="dialog"
             aria-modal="true"
+            onClick={(event) => event.stopPropagation()}
             className="w-full max-w-md rounded-xl border border-[#48bb78]/40 bg-[#1a365d] p-6 text-center shadow-2xl"
           >
             <div className="mb-2 text-4xl" aria-hidden="true">✅</div>
