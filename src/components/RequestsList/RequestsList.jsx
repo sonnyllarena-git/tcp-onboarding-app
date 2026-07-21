@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAllRequests, calculateRequestSLA, getRequestWorkEmail } from '../../mockData';
+import { listRequests } from '../../services/requestService';
 
 const INITIAL_FILTERS = {
   nameSearch: '',
@@ -55,8 +56,32 @@ export function filterRequests(requests, filters) {
 
 function RequestsList() {
   const navigate = useNavigate();
-  const [requests] = useState(getAllRequests);
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const real = await listRequests();
+        if (cancelled) return;
+        setRequests([...real, ...getAllRequests()]);
+      } catch (error) {
+        console.error('[RequestsList] failed to load requests:', error.message);
+        if (!cancelled) setLoadError(error.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredRequests = useMemo(() => filterRequests(requests, filters), [requests, filters]);
 
@@ -68,9 +93,19 @@ function RequestsList() {
     setFilters(INITIAL_FILTERS);
   };
 
+  if (loading) {
+    return <div className="p-6 text-white">Loading requests...</div>;
+  }
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold text-white mb-6">Requests</h1>
+
+      {loadError && (
+        <div className="mb-4 rounded-lg border border-[#f56565]/40 bg-[#f56565]/10 p-3 text-sm text-[#f56565]">
+          {loadError}
+        </div>
+      )}
 
       <div className="bg-[#1a365d] border border-[#d4a574]/30 rounded-lg p-4 mb-4 flex flex-wrap gap-3 items-end">
         <div>

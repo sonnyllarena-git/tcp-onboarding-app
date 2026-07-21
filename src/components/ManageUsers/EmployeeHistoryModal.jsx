@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { getAllRequests, buildTransitionChangeSummary } from '../../mockData';
+import { listRequests } from '../../services/requestService';
 
 const STATUS_BADGE_STYLES = {
   completed: 'bg-[#48bb78]/15 text-[#48bb78]',
@@ -55,12 +56,31 @@ function formatHistoryDate(value) {
  * @returns {React.ReactElement} EmployeeHistoryModal component
  */
 function EmployeeHistoryModal({ user, onClose }) {
-  const history = useMemo(() => {
-    const email = (user.email || '').toLowerCase();
-    return getAllRequests()
-      .filter((r) => (r.email || '').toLowerCase() === email)
-      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-  }, [user.email]);
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const email = (user.email || '').toLowerCase();
+      const mockHistory = getAllRequests().filter((r) => (r.email || '').toLowerCase() === email);
+      let realHistory = [];
+      if (user.id) {
+        try {
+          realHistory = await listRequests({ userId: user.id });
+        } catch (error) {
+          console.error('[EmployeeHistoryModal] failed to load real history:', error.message);
+        }
+      }
+      if (cancelled) return;
+      setHistory(
+        [...realHistory, ...mockHistory].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      );
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [user.email, user.id]);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4 py-8" onClick={onClose}>

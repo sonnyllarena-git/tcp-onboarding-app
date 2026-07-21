@@ -1,11 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import UsersFilters from './UsersFilters';
 import UsersTable from './UsersTable';
 import UserDetailsModal from './UserDetailsModal';
 import TransitionForm from '../TransitionForm/TransitionForm';
 import ReactivationForm from '../ReactivationForm/ReactivationForm';
-import { getAllUsers, getAllRequests, getPendingRequestByEmail } from '../../mockData';
+import { getAllRequests, getPendingRequestByEmail } from '../../mockData';
+import * as userService from '../../services/userService';
+import * as requestService from '../../services/requestService';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -95,16 +97,37 @@ export function getRequestIdByEmail(email) {
  */
 function ManageUsers() {
   const navigate = useNavigate();
-  const [users] = useState(getAllUsers);
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [realPendingRequests, setRealPendingRequests] = useState([]);
   const [version, setVersion] = useState(0);
+
+  const loadUsers = useCallback(async () => {
+    setLoadingUsers(true);
+    setLoadError(null);
+    try {
+      const [fetchedUsers, pending] = await Promise.all([
+        userService.getAllUsers(),
+        requestService.listRequests({ status: 'PENDING' }),
+      ]);
+      setUsers(fetchedUsers);
+      setRealPendingRequests(pending);
+    } catch (error) {
+      console.error('[ManageUsers] failed to load users:', error.message);
+      setLoadError(error.message);
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers, version]);
+
   const pendingOffboardEmails = useMemo(
-    () =>
-      new Set(
-        getAllRequests()
-          .filter((r) => r.type === 'Offboarding' && r.status === 'pending')
-          .map((r) => r.email.toLowerCase())
-      ),
-    [version]
+    () => new Set(realPendingRequests.filter((r) => r.type === 'Offboarding').map((r) => r.email.toLowerCase())),
+    [realPendingRequests]
   );
   const pendingTransitionEmails = useMemo(
     () =>
@@ -168,10 +191,19 @@ function ManageUsers() {
     setSelectedUser(null);
   };
 
-  /** Navigates to the pending request matching this user's email. */
-  const handleViewRequest = (userId) => {
+  /**
+   * Navigates to the pending request for this user - checks the real
+   * backend (Onboarding/Offboarding) first, then falls back to the
+   * local mock store (Transition/Reactivation).
+   */
+  const handleViewRequest = async (userId) => {
     const user = users.find((u) => u.id === userId);
     if (!user) {
+      return;
+    }
+    const realMatch = realPendingRequests.find((r) => r.userId === userId);
+    if (realMatch) {
+      navigate(`/requests/${realMatch.id}`, { state: { fromManageUsers: true } });
       return;
     }
     const requestId = getRequestIdByEmail(user.email);
@@ -225,6 +257,18 @@ function ManageUsers() {
   const handleReactivationSuccess = () => {
     setVersion((v) => v + 1);
   };
+
+  if (loadingUsers) {
+    return <div className="p-6 text-white">Loading users...</div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-2xl p-6">
+        <div className="rounded-xl border border-[#f56565]/40 bg-[#f56565]/10 p-6 text-sm text-[#f56565]">{loadError}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">

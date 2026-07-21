@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import StatBox from './StatBox';
 import QuickActions from './QuickActions';
-import { getAllUsers, getAllRequests } from '../../mockData';
+import { getAllRequests } from '../../mockData';
+import { getAllUsers } from '../../services/userService';
+import { listRequests } from '../../services/requestService';
 
 /**
  * Returns a time-of-day greeting.
@@ -198,9 +200,30 @@ function StatDetailModal({ statKey, records, onClose, onViewRequest }) {
  */
 function Dashboard({ userName = 'User' }) {
   const navigate = useNavigate();
-  const [users] = useState(getAllUsers);
-  const [requests] = useState(getAllRequests);
+  const [users, setUsers] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [openStat, setOpenStat] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [realUsers, realRequests] = await Promise.all([getAllUsers(), listRequests()]);
+        if (cancelled) return;
+        setUsers(realUsers);
+        setRequests([...realRequests, ...getAllRequests()]);
+      } catch (error) {
+        console.error('[Dashboard] failed to load data:', error.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const { stats, detail } = buildDashboardStats(users, requests);
 
@@ -233,6 +256,10 @@ function Dashboard({ userName = 'User' }) {
     setOpenStat(null);
     navigate(`/requests/${requestId}`);
   };
+
+  if (loading) {
+    return <div className="p-6 text-white">Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">

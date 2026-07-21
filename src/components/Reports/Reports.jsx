@@ -1,7 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   getAllRequests,
-  getAllUsers,
   calculateRequestSLA,
   PLATFORMS,
   getMonthRange,
@@ -13,6 +12,9 @@ import {
   compareMetrics,
 } from '../../mockData';
 import { getAllAuditLogs } from '../AuditLogs';
+import { getAllUsers as getAllUsersReal } from '../../services/userService';
+import { listRequests } from '../../services/requestService';
+import { listAuditLogs } from '../../services/auditService';
 
 const PERIOD_OPTIONS = [
   { id: 'thisMonth', label: 'This Month' },
@@ -450,9 +452,36 @@ function Reports() {
   const [showMonthlyBreakdown, setShowMonthlyBreakdown] = useState(false);
   const [show12MonthTrend, setShow12MonthTrend] = useState(false);
 
-  const allRequests = useMemo(() => getAllRequests(), []);
-  const users = useMemo(() => getAllUsers(), []);
-  const allAuditLogs = useMemo(() => getAllAuditLogs(), []);
+  const [allRequests, setAllRequests] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [allAuditLogs, setAllAuditLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [realRequests, realUsers, realAuditLogs] = await Promise.all([
+          listRequests(),
+          getAllUsersReal(),
+          listAuditLogs(),
+        ]);
+        if (cancelled) return;
+        setAllRequests([...realRequests, ...getAllRequests()]);
+        setUsers(realUsers);
+        setAllAuditLogs([...realAuditLogs, ...getAllAuditLogs()]);
+      } catch (error) {
+        console.error('[Reports] failed to load data:', error.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const last12Months = useMemo(() => getLast12MonthRanges(), []);
 
   const { current: currentRange, previous: previousRange, supportsMonthlyBreakdown } = useMemo(
@@ -591,6 +620,10 @@ function Reports() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
+
+  if (loading) {
+    return <div className="p-6 text-white">Loading reports...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] px-4 py-6 dark:from-[#0a0f1e] dark:to-[#0a0f1e] sm:px-6 lg:px-8">

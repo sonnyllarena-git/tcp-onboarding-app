@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { getPendingRequestByEmail } from '../../mockData';
+import { listRequests } from '../../services/requestService';
 import EmployeeHistoryModal from './EmployeeHistoryModal';
 
 const STATUS_INDICATORS = {
@@ -53,6 +54,7 @@ function formatDate(date) {
 function UserDetailsModal({ isOpen, user, onClose, onViewRequest }) {
   const [visible, setVisible] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [pendingRequest, setPendingRequest] = useState(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -73,13 +75,36 @@ function UserDetailsModal({ isOpen, user, onClose, onViewRequest }) {
     };
   }, [isOpen, onClose]);
 
+  // Checks the real backend (Onboarding/Offboarding) first, falling
+  // back to the local mock store (Transition/Reactivation).
+  useEffect(() => {
+    if (!isOpen || !user) {
+      setPendingRequest(null);
+      return undefined;
+    }
+    let cancelled = false;
+    async function loadPending() {
+      try {
+        const real = await listRequests({ userId: user.id, status: 'PENDING' });
+        if (cancelled) return;
+        setPendingRequest(real[0] || getPendingRequestByEmail(user.email));
+      } catch (error) {
+        console.error('[UserDetailsModal] failed to load pending request:', error.message);
+        if (!cancelled) setPendingRequest(getPendingRequestByEmail(user.email));
+      }
+    }
+    loadPending();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, user]);
+
   if (!isOpen || !user) {
     return null;
   }
 
   const statusInfo = STATUS_INDICATORS[user.status] || STATUS_INDICATORS.inactive;
   const platforms = user.platforms || [];
-  const pendingRequest = getPendingRequestByEmail(user.email);
 
   return (
     <>

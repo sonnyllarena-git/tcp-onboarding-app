@@ -1,18 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Step1EmployeeInfo, { validateStep1, getTodayIsoDate } from './Step1EmployeeInfo';
 import Step2OffboardingActions, { validateStep2 } from './Step2OffboardingActions';
 import Step3Review from './Step3Review';
 import CancelConfirmationModal from './CancelConfirmationModal';
 import SuccessModal from './SuccessModal';
-import {
-  getUserByIdMerged,
-  getAllRequests,
-  createOffboardingRequest,
-  withTimelineEvent,
-  saveRequest,
-} from '../../mockData';
-import { recordAuditLog } from '../AuditLogs';
+import * as userService from '../../services/userService';
+import * as requestService from '../../services/requestService';
 import { NotFoundPage } from '../ErrorState';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -61,23 +55,44 @@ function buildInitialFormData(user, userId) {
 function OffboardingForm() {
   const { userId } = useParams();
   const navigate = useNavigate();
-  const user = getUserByIdMerged(userId);
   const loggedInUser = useAuth();
-  const pendingOffboardRequest = user
-    ? getAllRequests().find(
-        (r) =>
-          r.type === 'Offboarding' &&
-          r.status === 'pending' &&
-          r.email.toLowerCase() === user.email.toLowerCase()
-      )
-    : null;
+
+  const [user, setUser] = useState(null);
+  const [loadingUser, setLoadingUser] = useState(true);
+  const [pendingOffboardRequest, setPendingOffboardRequest] = useState(null);
 
   const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState(() => buildInitialFormData(user, userId));
+  const [formData, setFormData] = useState(() => buildInitialFormData(null, userId));
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
   const [submittedRequest, setSubmittedRequest] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoadingUser(true);
+      try {
+        const fetchedUser = await userService.getUser(userId);
+        if (cancelled) return;
+        setUser(fetchedUser);
+        setFormData(buildInitialFormData(fetchedUser, userId));
+        const requests = await requestService.listRequests({ userId, status: 'PENDING' });
+        if (cancelled) return;
+        setPendingOffboardRequest(requests.find((r) => r.type === 'Offboarding') || null);
+      } catch (error) {
+        console.error('[OffboardingForm] failed to load user:', error.message);
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) setLoadingUser(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const handleDataChange = (updates) => {
     setFormData((prev) => ({ ...prev, ...updates }));
@@ -112,51 +127,39 @@ function OffboardingForm() {
     setShowCancelModal(false);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setSubmitting(true);
-    // TODO: Replace with a real API call to submit the offboarding request.
-    setTimeout(() => {
-      const baseRequest = createOffboardingRequest({
+    setSubmitError(null);
+    try {
+      const created = await requestService.submitOffboardingRequest({
         userId: formData.userId,
-        employeeName: formData.employeeName,
-        email: formData.email,
-        department: formData.department,
-        manager: formData.manager,
-        offboardingReason: formData.offboardingReason,
-        offboardingDate: formData.offboardingDate,
-        finalDay: formData.finalDay,
-        timing: formData.timing,
-        selectedPlatforms: formData.selectedPlatforms,
         submittedBy: loggedInUser?.name || 'Unknown User',
-        submittedByRole: loggedInUser?.role || 'Unknown',
-        submittedByDept: loggedInUser?.department || 'Unknown',
+        platforms: formData.selectedPlatforms,
       });
-      const newRequest = withTimelineEvent(baseRequest, 'Request Created', 'completed');
-      saveRequest(newRequest);
 
       // The employee stays active until this request is actually approved
       // in RequestDetails - mirrors onboarding's own pending -> active
       // symmetry, and avoids deactivating someone whose offboarding could
       // still be rejected.
-      recordAuditLog({
-        userEmail: loggedInUser?.email || 'unknown',
-        userName: loggedInUser?.name || 'Unknown User',
-        department: loggedInUser?.department || 'Unknown',
-        action: 'OFFBOARDING_SUBMITTED',
-        requestId: newRequest.id,
-        details: `${formData.employeeName} — ${formData.department}`,
-      });
+      //
+      // No local recordAuditLog here - the backend already records
+      // OFFBOARDING_SUBMITTED for this call, and AuditLogs.jsx merges
+      // that real entry in automatically.
 
       setSubmittedRequest({
-        requestId: newRequest.id,
-        employeeName: newRequest.employeeName,
-        submittedBy: newRequest.submittedBy,
-        submittedAt: newRequest.createdAt,
+        requestId: created.id,
+        employeeName: formData.employeeName,
+        submittedBy: loggedInUser?.name || 'Unknown User',
+        submittedAt: new Date().toISOString(),
         selectedPlatforms: formData.selectedPlatforms,
       });
-      setSubmitting(false);
       setShowSuccessModal(true);
-    }, 1500);
+    } catch (error) {
+      console.error('[OffboardingForm] submit failed:', error.message);
+      setSubmitError(error.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleGoToDashboard = () => {
@@ -168,6 +171,10 @@ function OffboardingForm() {
     setShowSuccessModal(false);
     navigate(`/requests/${submittedRequest.requestId}`);
   };
+
+  if (loadingUser) {
+    return <div className="p-6 text-white">Loading...</div>;
+  }
 
   if (!user) {
     return <NotFoundPage />;
@@ -278,6 +285,7 @@ function OffboardingForm() {
             onBack={handleBack}
             onCancel={handleCancel}
             submitting={submitting}
+            error={submitError}
           />
         )}
       </div>

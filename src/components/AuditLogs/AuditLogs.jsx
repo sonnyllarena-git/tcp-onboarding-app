@@ -3,6 +3,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { ForbiddenPage } from '../ErrorState';
 import AuditLogsFilters from './AuditLogsFilters';
 import AuditLogsTable from './AuditLogsTable';
+import { listAuditLogs } from '../../services/auditService';
  
 const ITEMS_PER_PAGE = 20;
  
@@ -215,17 +216,42 @@ export function getPaginatedLogs(logs, currentPage, itemsPerPage = ITEMS_PER_PAG
 function AuditLogs() {
   const user = useAuth();
 
-  const [logs] = useState(getAllAuditLogs);
+  const [logs, setLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
   const [visibleColumns, setVisibleColumns] = useState(DEFAULT_VISIBLE_COLUMNS);
   const [showPlatformLogs, setShowPlatformLogs] = useState(false);
 
+  // Real backend audit entries (Onboarding/Offboarding/user actions),
+  // merged with the local mock/localStorage entries (login, CSV import/
+  // export, Transition/Reactivation workflow events) that have no
+  // backend equivalent - see mockData.js's own header comment for why
+  // Transition/Reactivation stay local.
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    async function load() {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const realLogs = await listAuditLogs();
+        if (!cancelled) setLogs([...realLogs, ...getAllAuditLogs()]);
+      } catch (error) {
+        console.error('[AuditLogs] failed to load real audit logs:', error.message);
+        if (!cancelled) {
+          setLogs(getAllAuditLogs());
+          setLoadError(error.message);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Derived from every log actually present (seed + runtime), not just the
@@ -290,6 +316,12 @@ function AuditLogs() {
         </p>
       </header>
  
+      {loadError && (
+        <div className="mb-4 rounded-lg border border-[#f56565]/40 bg-[#f56565]/10 p-3 text-sm text-[#f56565]">
+          ⚠️ Could not load real backend audit logs ({loadError}) - showing local entries only.
+        </div>
+      )}
+
       <AuditLogsFilters
         searchTerm={searchTerm}
         onSearchChange={handleSearchChange}

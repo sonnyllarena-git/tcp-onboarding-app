@@ -1,31 +1,35 @@
 /**
  * mockData.js
  *
- * Single source of truth for every mock record used across the TCP
- * Onboarding Portal (ManageUsers, RequestsList, RequestDetails,
- * OnboardingForm, OffboardingForm, ...). Think of this file as an offline
- * database directory: every component imports its data from here instead
- * of keeping its own inline copy, so a given id/email always resolves to
- * the same person and the same request everywhere in the app.
+ * Phase 3: this file is NO LONGER a mock user/request database. Real
+ * users and real onboarding/offboarding requests now come from the
+ * Phase 2 Express backend via src/services/{userService,requestService,
+ * platformService,auditService}.js.
  *
- * TODO: When a real backend exists, only this file needs to change. Each
- * `getMock*` lookup below can become an `async` function that calls the
- * real API instead of searching an in-memory array — for example:
+ * What's still here, and why:
  *
- *   // Before (mock):
- *   export function getMockUserById(userId) {
- *     return MOCK_USERS.find((u) => u.id === Number(userId)) || null;
- *   }
+ *   1. Pure business logic with nothing to do with mocking - SLA
+ *      calculation, date-range math for Reports, work-email
+ *      generation, timeline formatting. This logic is real regardless
+ *      of where the data comes from, so it stays.
+ *   2. MOCK_ACCOUNTS / getMockAccountByEmail - LoginPage's login
+ *      directory. The Phase 2 backend has no login endpoint, so this
+ *      stays mock for now (a deliberate, disclosed Phase 3 scope
+ *      decision - see the app's README).
+ *   3. A small localStorage-backed request pipeline (getAllRequests/
+ *      saveRequest/getRequestByIdMerged/getPendingRequestByEmail/
+ *      getNextRequestId) kept ALIVE, but now used ONLY by Transition
+ *      and Reactivation requests - the Phase 2 backend has no
+ *      endpoints for these two request types. Their pending-request
+ *      tracking stays local; the field changes they apply on
+ *      completion are written to the REAL backend user record (see
+ *      RequestDetails.jsx's handleCompleteRequest).
  *
- *   // After (real API):
- *   export async function getMockUserById(userId) {
- *     const response = await fetch(`/api/users/${userId}`);
- *     return response.json();
- *   }
- *
- * Every component that imports these helpers keeps working unchanged,
- * since it only ever calls `getMockUserById(...)` — it never reaches
- * into MOCK_USERS directly.
+ * Everything that used to read/write MOCK_USERS or the fictional
+ * MOCK_REQUESTS onboarding/offboarding seed has been removed -
+ * getAllUsers/saveUser/getUserByIdMerged/buildActivatedUser/
+ * buildDeactivatedUser/buildPendingUser/createOnboardingRequest/
+ * createOffboardingRequest now live in src/services/*.js instead.
  */
 
 /**
@@ -50,133 +54,15 @@ export const PLATFORM_ACTIONS = [
 export const PLATFORMS = PLATFORM_ACTIONS.map((platform) => platform.name);
 
 /**
- * All 20 employees: 6 pending, 10 active, 4 inactive.
- * `manager` is null for inactive users (they no longer have one on file).
- * `platforms` is a plain list of platform names — the platforms assigned
- * to (or, for inactive users, previously assigned to) this employee.
- */
-export const MOCK_USERS = [
-  // Pending (6)
-  { id: 1, name: 'Olivia Martin', email: 'olivia.martin@thecreditpros.com', status: 'pending', department: 'IT', manager: 'Diana Foster', dateOnboarded: 'Jul 16, 2026', dateOffboarded: null, platforms: ['Azure AD', 'Keeper'] },
-  { id: 2, name: 'Ethan Clark', email: 'ethan.clark@thecreditpros.com', status: 'pending', department: 'Sales', manager: 'James Whitfield', dateOnboarded: 'Jul 17, 2026', dateOffboarded: null, platforms: ['Azure AD'] },
-  { id: 3, name: 'Sophia Turner', email: 'sophia.turner@thecreditpros.com', status: 'pending', department: 'Marketing', manager: 'Rachel Nguyen', dateOnboarded: 'Jul 15, 2026', dateOffboarded: null, platforms: ['Azure AD', 'Jira', 'Krisp'] },
-  { id: 4, name: 'Liam Foster', email: 'liam.foster@thecreditpros.com', status: 'pending', department: 'Finance', manager: 'Marcus Bell', dateOnboarded: 'Jul 14, 2026', dateOffboarded: null, platforms: ['Azure AD', 'Hodu'] },
-  { id: 5, name: 'Ava Bennett', email: 'ava.bennett@thecreditpros.com', status: 'pending', department: 'HR', manager: 'Sandra Okafor', dateOnboarded: 'Jul 17, 2026', dateOffboarded: null, platforms: ['Azure AD'] },
-  { id: 6, name: 'Noah Coleman', email: 'noah.coleman@thecreditpros.com', status: 'pending', department: 'Operations', manager: 'Kevin Tran', dateOnboarded: 'Jul 16, 2026', dateOffboarded: null, platforms: ['Azure AD', 'Zoho Desk'] },
-  // Active (10) — all offboardable
-  { id: 7, name: 'John Doe', email: 'john.doe@thecreditpros.com', status: 'active', department: 'IT', manager: 'Robert Chen', dateOnboarded: 'Jul 15, 2026', dateOffboarded: null, platforms: [] },
-  { id: 8, name: 'Jane Smith', email: 'jane.smith@thecreditpros.com', status: 'active', department: 'HR', manager: 'Priya Patel', dateOnboarded: 'Jul 14, 2026', dateOffboarded: null, platforms: [] },
-  { id: 9, name: 'Bob Johnson', email: 'bob.johnson@thecreditpros.com', status: 'active', department: 'Finance', manager: 'David Kim', dateOnboarded: 'Jul 10, 2026', dateOffboarded: null, platforms: [] },
-  { id: 10, name: 'Alice Brown', email: 'alice.brown@thecreditpros.com', status: 'active', department: 'Marketing', manager: 'Laura Chen', dateOnboarded: 'Jul 8, 2026', dateOffboarded: null, platforms: [] },
-  { id: 11, name: 'Emma Davis', email: 'emma.davis@thecreditpros.com', status: 'active', department: 'HR', manager: 'Nina Rodriguez', dateOnboarded: 'Jul 5, 2026', dateOffboarded: null, platforms: [] },
-  { id: 12, name: 'Michael Lee', email: 'michael.lee@thecreditpros.com', status: 'active', department: 'Operations', manager: 'Steve Park', dateOnboarded: 'Jul 3, 2026', dateOffboarded: null, platforms: [] },
-  { id: 13, name: 'Sarah Miller', email: 'sarah.miller@thecreditpros.com', status: 'active', department: 'IT', manager: 'Angela Cruz', dateOnboarded: 'Jul 1, 2026', dateOffboarded: null, platforms: [] },
-  { id: 14, name: 'Daniel Reed', email: 'daniel.reed@thecreditpros.com', status: 'active', department: 'Sales', manager: 'Patricia Nguyen', dateOnboarded: 'Jul 2, 2026', dateOffboarded: null, platforms: [] },
-  { id: 15, name: 'Grace Kim', email: 'grace.kim@thecreditpros.com', status: 'active', department: 'Customer Support', manager: 'Victor Adeyemi', dateOnboarded: 'Jul 4, 2026', dateOffboarded: null, platforms: [] },
-  { id: 16, name: 'Lucas Ramirez', email: 'lucas.ramirez@thecreditpros.com', status: 'active', department: 'IT', manager: 'Helen Osei', dateOnboarded: 'Jul 6, 2026', dateOffboarded: null, platforms: [] },
-  // Inactive (4) — no current manager on file
-  { id: 17, name: 'Charlie Wilson', email: 'charlie.wilson@thecreditpros.com', status: 'inactive', department: 'Finance', manager: null, dateOnboarded: 'Jun 1, 2026', dateOffboarded: 'Jul 10, 2026', platforms: [] },
-  { id: 18, name: 'David Garcia', email: 'david.garcia@thecreditpros.com', status: 'inactive', department: 'Sales', manager: null, dateOnboarded: 'Jun 5, 2026', dateOffboarded: 'Jul 12, 2026', platforms: [] },
-  { id: 19, name: 'Laura Martinez', email: 'laura.martinez@thecreditpros.com', status: 'inactive', department: 'Marketing', manager: null, dateOnboarded: 'May 20, 2026', dateOffboarded: 'Jul 8, 2026', platforms: [] },
-  { id: 20, name: 'Kevin Anderson', email: 'kevin.anderson@thecreditpros.com', status: 'inactive', department: 'Operations', manager: null, dateOnboarded: 'May 15, 2026', dateOffboarded: 'Jul 5, 2026', platforms: [] },
-];
-
-const ALL_PLATFORMS_COMPLETED = [
-  { name: 'Azure AD', status: 'completed' },
-  { name: 'Keeper', status: 'completed' },
-  { name: 'Hodu', status: 'completed' },
-  { name: 'Krisp', status: 'completed' },
-  { name: 'Jira', status: 'completed' },
-  { name: 'Zoho Desk', status: 'completed' },
-  { name: 'Acuity', status: 'completed' },
-];
-
-/**
- * All 9 onboarding/offboarding requests: 6 pending onboarding (one per
- * pending user above), 2 completed onboarding, and 1 completed
- * offboarding. Each record carries BOTH the `name`/`type`/`date` field
- * names (read by RequestsList's existing filter/table logic) and the
- * `employeeName`/`requestType`/`startDate` names (read by RequestDetails'
- * existing display logic) so neither component's code had to change to
- * read from this shared source — only their data source did.
- */
-export const MOCK_REQUESTS = [
-  { id: 101, name: 'Olivia Martin', employeeName: 'Olivia Martin', email: 'olivia.martin@thecreditpros.com', type: 'Onboarding', requestType: 'Onboarding', status: 'pending', date: 'Jul 16, 2026', startDate: 'Jul 16, 2026', department: 'IT', manager: 'Diana Foster', platforms: [{ name: 'Azure AD', status: 'pending' }, { name: 'Keeper', status: 'pending' }], timeline: [{ timestamp: 'Jul 16, 2026 09:00 AM', action: 'Request Created', status: 'completed' }] },
-  { id: 102, name: 'Ethan Clark', employeeName: 'Ethan Clark', email: 'ethan.clark@thecreditpros.com', type: 'Onboarding', requestType: 'Onboarding', status: 'pending', date: 'Jul 17, 2026', startDate: 'Jul 17, 2026', department: 'Sales', manager: 'James Whitfield', platforms: [{ name: 'Azure AD', status: 'pending' }], timeline: [{ timestamp: 'Jul 17, 2026 08:30 AM', action: 'Request Created', status: 'completed' }] },
-  { id: 103, name: 'Sophia Turner', employeeName: 'Sophia Turner', email: 'sophia.turner@thecreditpros.com', type: 'Onboarding', requestType: 'Onboarding', status: 'pending', date: 'Jul 15, 2026', startDate: 'Jul 15, 2026', department: 'Marketing', manager: 'Rachel Nguyen', platforms: [{ name: 'Azure AD', status: 'pending' }, { name: 'Jira', status: 'pending' }, { name: 'Krisp', status: 'pending' }], timeline: [{ timestamp: 'Jul 15, 2026 10:00 AM', action: 'Request Created', status: 'completed' }] },
-  { id: 104, name: 'Liam Foster', employeeName: 'Liam Foster', email: 'liam.foster@thecreditpros.com', type: 'Onboarding', requestType: 'Onboarding', status: 'pending', date: 'Jul 14, 2026', startDate: 'Jul 14, 2026', department: 'Finance', manager: 'Marcus Bell', platforms: [{ name: 'Azure AD', status: 'pending' }, { name: 'Hodu', status: 'pending' }], timeline: [{ timestamp: 'Jul 14, 2026 09:15 AM', action: 'Request Created', status: 'completed' }] },
-  { id: 105, name: 'Ava Bennett', employeeName: 'Ava Bennett', email: 'ava.bennett@thecreditpros.com', type: 'Onboarding', requestType: 'Onboarding', status: 'pending', date: 'Jul 17, 2026', startDate: 'Jul 17, 2026', department: 'HR', manager: 'Sandra Okafor', platforms: [{ name: 'Azure AD', status: 'pending' }], timeline: [{ timestamp: 'Jul 17, 2026 11:00 AM', action: 'Request Created', status: 'completed' }] },
-  { id: 106, name: 'Noah Coleman', employeeName: 'Noah Coleman', email: 'noah.coleman@thecreditpros.com', type: 'Onboarding', requestType: 'Onboarding', status: 'pending', date: 'Jul 16, 2026', startDate: 'Jul 16, 2026', department: 'Operations', manager: 'Kevin Tran', platforms: [{ name: 'Azure AD', status: 'pending' }, { name: 'Zoho Desk', status: 'pending' }], timeline: [{ timestamp: 'Jul 16, 2026 01:00 PM', action: 'Request Created', status: 'completed' }] },
-  {
-    id: 107,
-    name: 'John Doe',
-    employeeName: 'John Doe',
-    email: 'john.doe@thecreditpros.com',
-    type: 'Onboarding',
-    requestType: 'Onboarding',
-    status: 'completed',
-    date: 'Jul 15, 2026',
-    startDate: 'Jul 15, 2026',
-    department: 'IT',
-    manager: 'Robert Chen',
-    platforms: ALL_PLATFORMS_COMPLETED,
-    timeline: [
-      { timestamp: 'Jul 15, 2026 10:30 AM', action: 'Request Created', status: 'completed' },
-      { timestamp: 'Jul 15, 2026 11:00 AM', action: 'Review Started', status: 'completed' },
-      { timestamp: 'Jul 15, 2026 02:30 PM', action: 'Request Completed', status: 'completed' },
-    ],
-  },
-  {
-    id: 108,
-    name: 'Alice Brown',
-    employeeName: 'Alice Brown',
-    email: 'alice.brown@thecreditpros.com',
-    type: 'Onboarding',
-    requestType: 'Onboarding',
-    status: 'completed',
-    date: 'Jul 8, 2026',
-    startDate: 'Jul 8, 2026',
-    department: 'Marketing',
-    manager: 'Laura Chen',
-    platforms: ALL_PLATFORMS_COMPLETED,
-    timeline: [
-      { timestamp: 'Jul 8, 2026 10:00 AM', action: 'Request Created', status: 'completed' },
-      { timestamp: 'Jul 8, 2026 10:30 AM', action: 'Review Started', status: 'completed' },
-      { timestamp: 'Jul 8, 2026 03:00 PM', action: 'Request Completed', status: 'completed' },
-    ],
-  },
-  {
-    id: 109,
-    name: 'Charlie Wilson',
-    employeeName: 'Charlie Wilson',
-    email: 'charlie.wilson@thecreditpros.com',
-    type: 'Offboarding',
-    requestType: 'Offboarding',
-    status: 'completed',
-    date: 'Jul 8, 2026',
-    startDate: 'Jul 8, 2026',
-    department: 'Finance',
-    manager: 'Mark Anderson',
-    platforms: ALL_PLATFORMS_COMPLETED,
-    timeline: [
-      { timestamp: 'Jul 8, 2026 09:00 AM', action: 'Request Created', status: 'completed' },
-      { timestamp: 'Jul 8, 2026 09:30 AM', action: 'Review Started', status: 'completed' },
-      { timestamp: 'Jul 10, 2026 05:00 PM', action: 'Request Completed', status: 'completed' },
-    ],
-  },
-];
-
-/**
  * MOCK_ACCOUNTS - Login credentials directory
  *
  * Simulates Azure AD group membership:
  * - role 'ADMIN' = member of TCPOnboardingAppAdmin (IT, request processors)
  * - role 'USER'  = member of TCPOnboardingAppUser (HR, Team Leads, requesters)
  *
- * These 4 names/emails intentionally match existing people in MOCK_USERS for
- * consistency, but this is a separate directory (login accounts vs. managed
- * employees) — a MOCK_USERS record can exist with no corresponding login
- * account, and vice versa.
+ * The Phase 2 backend has no login/auth endpoint, so this stays the
+ * login source of truth for now - a disclosed Phase 3 scope decision,
+ * not an oversight.
  */
 export const MOCK_ACCOUNTS = [
   { id: 'acc-1', name: 'Sarah Miller', email: 'sarah.miller@thecreditpros.com', role: 'USER', department: 'HR' },
@@ -242,123 +128,6 @@ export const MOCK_JOB_TITLES = [
 ];
 
 /**
- * Looks up a mock user by id.
- * @param {number|string} userId - User id, typically read from the URL
- * @returns {Object|null} The matching user, or null if not found
- */
-export function getMockUserById(userId) {
-  const numericId = Number(userId);
-  return MOCK_USERS.find((user) => user.id === numericId) || null;
-}
-
-/**
- * Looks up a mock user by email (case-insensitive).
- * @param {string} email - Email address to look up
- * @returns {Object|null} The matching user, or null if not found
- */
-export function getMockUserByEmail(email) {
-  const normalized = (email || '').toLowerCase();
-  return MOCK_USERS.find((user) => user.email.toLowerCase() === normalized) || null;
-}
-
-/**
- * Looks up a mock request by id.
- * @param {number|string} requestId - Request id, typically read from the URL
- * @returns {Object|null} The matching request, or null if not found
- */
-export function getMockRequestById(requestId) {
-  const numericId = Number(requestId);
-  return MOCK_REQUESTS.find((request) => request.id === numericId) || null;
-}
-
-/**
- * Looks up a mock request by the requester's email (case-insensitive).
- * When more than one request shares an email, the first match is returned.
- * @param {string} email - Email address to look up
- * @returns {Object|null} The matching request, or null if not found
- */
-export function getMockRequestByEmail(email) {
-  const normalized = (email || '').toLowerCase();
-  return MOCK_REQUESTS.find((request) => request.email.toLowerCase() === normalized) || null;
-}
-
-/**
- * Filters users by status.
- * @param {string} status - "pending" | "active" | "inactive"
- * @returns {Array} Users with that status
- */
-export function getMockUsersByStatus(status) {
-  return MOCK_USERS.filter((user) => user.status === status);
-}
-
-/**
- * Filters requests by status.
- * @param {string} status - e.g. "pending" | "completed"
- * @returns {Array} Requests with that status
- */
-export function getMockRequestsByStatus(status) {
-  return MOCK_REQUESTS.filter((request) => request.status === status);
-}
-
-/**
- * Filters users by department (case-insensitive).
- * @param {string} department - Department name
- * @returns {Array} Users in that department
- */
-export function getMockUsersByDepartment(department) {
-  const normalized = (department || '').toLowerCase();
-  return MOCK_USERS.filter((user) => (user.department || '').toLowerCase() === normalized);
-}
-
-/**
- * Filters users by manager name (case-insensitive). Inactive users have a
- * null manager and never match, regardless of who managed them historically.
- * @param {string} managerName - Manager's name
- * @returns {Array} Users reporting to that manager
- */
-export function getMockUsersByManager(managerName) {
-  const normalized = (managerName || '').toLowerCase();
-  return MOCK_USERS.filter((user) => (user.manager || '').toLowerCase() === normalized);
-}
-
-/**
- * @returns {Array} All active users (10)
- */
-export function getMockActiveUsers() {
-  return getMockUsersByStatus('active');
-}
-
-/**
- * @returns {Array} All pending users (6)
- */
-export function getMockPendingUsers() {
-  return getMockUsersByStatus('pending');
-}
-
-/**
- * @returns {Array} All pending requests (6)
- */
-export function getMockPendingRequests() {
-  return getMockRequestsByStatus('pending');
-}
-
-/**
- * @returns {Object} Summary counts across users and requests, handy for
- *   dashboard-style widgets or sanity-checking data consistency in tests.
- */
-export function getMockDataSummary() {
-  return {
-    totalUsers: MOCK_USERS.length,
-    activeUsers: getMockUsersByStatus('active').length,
-    pendingUsers: getMockUsersByStatus('pending').length,
-    inactiveUsers: getMockUsersByStatus('inactive').length,
-    totalRequests: MOCK_REQUESTS.length,
-    pendingRequests: getMockRequestsByStatus('pending').length,
-    completedRequests: getMockRequestsByStatus('completed').length,
-  };
-}
-
-/**
  * MOCK_DEPARTMENT_GROUPS - Simulates Azure AD role/groups.
  * Production: these map to actual Azure AD security groups.
  * Local: mock groups for testing Default Platforms per Department.
@@ -390,11 +159,7 @@ export const AVAILABLE_PLATFORMS = [
 ];
 
 /**
- * Option lists for TransitionForm's "new" fields. Department and manager
- * options reuse names that already exist in the seed data (real
- * departments/managers this app already knows about) rather than
- * inventing a disconnected fictional roster; Floor/Role/Type have no
- * existing app concept to reconcile against, so they're new lists.
+ * Option lists for TransitionForm/ReactivationForm's "new" fields.
  */
 export const DEPARTMENT_OPTIONS = ['IT', 'Sales', 'Marketing', 'Finance', 'HR', 'Operations', 'Customer Support'];
 
@@ -471,25 +236,19 @@ export const IT_SUPPORT = {
 
 /**
  * ---------------------------------------------------------------------
- * Runtime workflow persistence (onboarding/offboarding wiring)
+ * Transition/Reactivation request pipeline (localStorage-backed)
  * ---------------------------------------------------------------------
- * MOCK_USERS/MOCK_REQUESTS above are a static, read-only seed shared by
- * every import of this module (including every test file) - mutating them
- * directly would leak state across renders and across the whole test run.
- * Instead, anything created or changed at runtime (a submitted request, an
- * approved request's platform progress, a user's status flipping) is
- * persisted to its own localStorage key and merged with the seed on read,
- * the same "seed + localStorage overrides" shape Settings already uses for
- * `tcp_settings`.
- *
- * TODO: When a real backend exists, getAllRequests/getAllUsers become the
- * fetch calls and saveRequest/saveUser become the mutation calls - callers
- * (OnboardingForm, OffboardingForm, RequestDetails, RequestsList,
- * ManageUsers) don't need to change.
+ * The Phase 2 backend has no request-tracking table for Transition or
+ * Reactivation requests (only onboarding_requests/offboarding_requests
+ * exist) - so unlike Onboarding/Offboarding, these two types keep their
+ * pending-request lifecycle here, exactly as before Phase 3. What DID
+ * change: once one of these requests is completed, the resulting field
+ * changes are written to the REAL backend user record (see
+ * RequestDetails.jsx), not to a local saveUser call - there is no more
+ * local user store to write to.
  */
 
 const REQUESTS_STORAGE_KEY = 'tcp_requests_extra';
-const USERS_STORAGE_KEY = 'tcp_users_extra';
 
 function readExtraRequests() {
   try {
@@ -509,41 +268,18 @@ function writeExtraRequests(requests) {
   }
 }
 
-function readExtraUsers() {
-  try {
-    const stored = localStorage.getItem(USERS_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeExtraUsers(users) {
-  try {
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-  } catch {
-    // see writeExtraRequests
-  }
-}
-
 /**
- * All requests: the static MOCK_REQUESTS seed, with any runtime-created or
- * runtime-modified requests merged in (a runtime entry with the same id as
- * a seed entry overrides it; otherwise it's appended).
- * @returns {Array} Combined requests, seed order first
+ * All locally-tracked requests (Transition/Reactivation only).
+ * @returns {Array}
  */
 export function getAllRequests() {
-  const extra = readExtraRequests();
-  const extraById = new Map(extra.map((r) => [r.id, r]));
-  const merged = MOCK_REQUESTS.map((r) => extraById.get(r.id) || r);
-  const newOnly = extra.filter((r) => !MOCK_REQUESTS.some((seed) => seed.id === r.id));
-  return [...merged, ...newOnly];
+  return readExtraRequests();
 }
 
 /**
- * Looks up one request by id from the combined seed + runtime set.
+ * Looks up one locally-tracked request by id.
  * @param {number|string} requestId
- * @returns {Object|null} The matching request, or null if not found
+ * @returns {Object|null}
  */
 export function getRequestByIdMerged(requestId) {
   const numericId = Number(requestId);
@@ -551,24 +287,20 @@ export function getRequestByIdMerged(requestId) {
 }
 
 /**
- * Finds the pending request (onboarding OR offboarding) matching an
- * email, if any. A user only ever has one request awaiting approval at a
- * time, so this is enough to answer "does this person have something in
- * flight right now?" without needing a separate per-type lookup.
+ * Finds the pending Transition/Reactivation request matching an email, if any.
  * @param {string} email
- * @returns {Object|null} The matching pending request, or null
+ * @returns {Object|null}
  */
 export function getPendingRequestByEmail(email) {
   const normalized = (email || '').toLowerCase();
   return (
-    getAllRequests().find((r) => r.email.toLowerCase() === normalized && r.status === 'pending') ||
-    null
+    getAllRequests().find((r) => r.email.toLowerCase() === normalized && r.status === 'pending') || null
   );
 }
 
 /**
- * Persists a request: updates it if already tracked at runtime, otherwise
- * adds it. Always writes the full runtime overlay back to localStorage.
+ * Persists a Transition/Reactivation request: updates it if already
+ * tracked, otherwise adds it.
  * @param {Object} request
  */
 export function saveRequest(request) {
@@ -583,167 +315,22 @@ export function saveRequest(request) {
 }
 
 /**
- * All users: the static MOCK_USERS seed, with any runtime-created or
- * runtime-modified users merged in (same override-by-id rule as requests).
- * @returns {Array} Combined users, seed order first
- */
-export function getAllUsers() {
-  const extra = readExtraUsers();
-  const extraById = new Map(extra.map((u) => [u.id, u]));
-  const merged = MOCK_USERS.map((u) => extraById.get(u.id) || u);
-  const newOnly = extra.filter((u) => !MOCK_USERS.some((seed) => seed.id === u.id));
-  return [...merged, ...newOnly];
-}
-
-/**
- * Looks up one user by id from the combined seed + runtime set - unlike
- * getMockUserById, this also resolves users created or activated at
- * runtime (e.g. by OnboardingForm/RequestDetails), not just the seed.
- * @param {number|string} userId
- * @returns {Object|null} The matching user, or null if not found
- */
-export function getUserByIdMerged(userId) {
-  const numericId = Number(userId);
-  return getAllUsers().find((u) => u.id === numericId) || null;
-}
-
-/**
- * Persists a user record: updates it if already overridden/new, otherwise
- * adds it as a new runtime user. Used both for brand-new employees and for
- * status changes to an existing seed user (e.g. active -> inactive).
- * @param {Object} user
- */
-export function saveUser(user) {
-  const extra = readExtraUsers();
-  const index = extra.findIndex((u) => u.id === user.id);
-  if (index >= 0) {
-    extra[index] = user;
-  } else {
-    extra.push(user);
-  }
-  writeExtraUsers(extra);
-}
-
-/**
- * Next id for a newly created request, continuing MOCK_REQUESTS' own
- * numeric sequence - onboarding and offboarding requests share one id
- * space (see MOCK_REQUESTS id 109, an offboarding record with a plain
- * numeric id).
+ * Next id for a newly created Transition/Reactivation request.
  * @returns {number}
  */
 export function getNextRequestId() {
-  const allIds = [...MOCK_REQUESTS, ...readExtraRequests()].map((r) => r.id);
+  const allIds = readExtraRequests().map((r) => r.id);
   return Math.max(...allIds, 0) + 1;
-}
-
-/**
- * Next id for a newly created user, continuing MOCK_USERS' sequence.
- * @returns {number}
- */
-export function getNextUserId() {
-  const allIds = [...MOCK_USERS, ...readExtraUsers()].map((u) => u.id);
-  return Math.max(...allIds, 0) + 1;
-}
-
-/**
- * Builds a new onboarding request from OnboardingForm's formData. Carries
- * both naming conventions RequestsList/RequestDetails each already read
- * (see MOCK_REQUESTS' own dual-field-name convention) so neither
- * component's existing display logic has to change.
- *
- * @param {Object} formData - OnboardingForm's formData, plus submittedBy/submittedByRole/submittedByDept
- * @returns {Object} The new request (not yet persisted - call saveRequest)
- */
-export function createOnboardingRequest(formData) {
-  return {
-    id: getNextRequestId(),
-    type: 'Onboarding',
-    requestType: 'Onboarding',
-    name: formData.employeeName,
-    employeeName: formData.employeeName,
-    email: formData.email,
-    status: 'pending',
-    date: formData.startDate,
-    startDate: formData.startDate,
-    department: formData.departmentName,
-    departmentName: formData.departmentName,
-    manager: formData.managerName,
-    managerName: formData.managerName,
-    jobTitleLabel: formData.jobTitleLabel,
-    role: formData.role,
-    floor: formData.floor,
-    employeeType: formData.employeeType,
-    employeeTypeLabel: formData.employeeTypeLabel,
-    azureGroupId: formData.azureGroupId,
-    azureGroupName: formData.azureGroupName,
-    azureGroupKey: formData.azureGroupKey,
-    hasDuplicateName: Boolean(formData.hasDuplicateName),
-    createdAt: new Date().toISOString(),
-    submittedBy: formData.submittedBy,
-    submittedByRole: formData.submittedByRole,
-    submittedByDept: formData.submittedByDept,
-    platforms: formData.selectedPlatforms.map((name) => ({
-      name,
-      status: 'pending',
-      completedBy: null,
-      completedAt: null,
-      error: null,
-    })),
-    timeline: [],
-  };
-}
-
-/**
- * Builds a new offboarding request from OffboardingForm's formData.
- * @param {Object} formData - includes userId, employeeName, email, department,
- *   manager, offboardingReason, offboardingDate, finalDay, selectedPlatforms,
- *   plus submittedBy/submittedByRole/submittedByDept
- * @returns {Object} The new request (not yet persisted - call saveRequest)
- */
-export function createOffboardingRequest(formData) {
-  return {
-    id: getNextRequestId(),
-    type: 'Offboarding',
-    requestType: 'Offboarding',
-    name: formData.employeeName,
-    employeeName: formData.employeeName,
-    email: formData.email,
-    status: 'pending',
-    date: formData.offboardingDate,
-    startDate: formData.offboardingDate,
-    department: formData.department,
-    departmentName: formData.department,
-    manager: formData.manager,
-    managerName: formData.manager,
-    userId: formData.userId,
-    offboardingReason: formData.offboardingReason,
-    finalDay: formData.finalDay,
-    timing: formData.timing || 'immediate',
-    createdAt: new Date().toISOString(),
-    submittedBy: formData.submittedBy,
-    submittedByRole: formData.submittedByRole,
-    submittedByDept: formData.submittedByDept,
-    platforms: formData.selectedPlatforms.map((name) => ({
-      name,
-      status: 'pending',
-      completedBy: null,
-      completedAt: null,
-      error: null,
-    })),
-    timeline: [],
-  };
 }
 
 /**
  * Builds a new transition request for an active user moving to a new
- * department/manager/floor/role/job title/type. Reuses the same request
- * shape as onboarding/offboarding (id/type/status/platforms/timeline) so
- * it slots into the existing getAllRequests()/RequestsList/RequestDetails
- * pipeline unchanged - the transition-specific old/new field pairs ride
- * alongside it. There is no platform provisioning step (platform access
- * changes are handled manually), so `platforms` is always empty.
+ * department/manager/floor/role/job title/type. There is no platform
+ * provisioning step (platform access changes are handled manually), so
+ * `platforms` is always empty.
  *
- * @param {Object} user - The active user being transitioned (from getAllUsers())
+ * @param {Object} user - The active user being transitioned (a real,
+ *   backend-adapted user from userService - see userService.adaptUser)
  * @param {Object} formData - { newDepartment, newManager, newFloor, newRole, newJobTitle, newType }
  * @param {Object} submitter - { submittedBy, submittedByRole, submittedByDept }
  * @returns {Object} The new request (not yet persisted - call saveRequest)
@@ -794,46 +381,37 @@ export function createTransitionRequest(user, formData, submitter) {
 }
 
 /**
- * Builds the updated user record once a transition request is completed:
- * applies every new* field and bumps the transition counter/timestamp.
+ * Builds the field changes to apply to the real user record once a
+ * transition request is completed. Returns null if `existingUser` is
+ * null (nothing to update).
  * @param {Object} request - A transition request whose fields to apply
- * @returns {Object|null} The user record to persist via saveUser, or null if no matching user exists
+ * @param {Object|null} existingUser - The real user, fetched via userService.getUser
+ * @returns {Object|null} { department, manager, floor, jobTitle, type } to pass to userService.updateUser, or null
  */
-export function buildTransitionedUser(request) {
-  const existing = getAllUsers().find((u) => u.id === request.userId);
-  if (!existing) {
+export function buildTransitionedUser(request, existingUser) {
+  if (!existingUser) {
     return null;
   }
   return {
-    ...existing,
+    ...existingUser,
     department: request.newDepartment,
     manager: request.newManager,
     // Floor/Role/Job Title/Type are optional on the request - a blank
     // value means "leave unchanged", not "clear it out".
-    floor: request.newFloor || existing.floor,
-    role: request.newRole || existing.role,
-    jobTitle: request.newJobTitle || existing.jobTitle,
-    type: request.newType || existing.type,
-    lastTransitionDate: new Date().toISOString(),
-    transitionCount: (existing.transitionCount || 0) + 1,
+    floor: request.newFloor || existingUser.floor,
+    role: request.newRole || existingUser.role,
+    jobTitle: request.newJobTitle || existingUser.jobTitle,
+    type: request.newType || existingUser.type,
   };
 }
 
 /**
  * Builds a new reactivation request for a rehired INACTIVE employee.
- * Reuses the same request shape/pipeline as onboarding/offboarding/
- * transition (id/type/status/platforms/timeline) so it slots into
- * getAllRequests()/RequestsList/RequestDetails unchanged, and reuses the
- * onboarding-style automated platform-provisioning flow (this employee
- * is having their access re-provisioned, same as a fresh hire) rather
- * than transition's manual-only flow.
- *
  * Department/Manager are the only required fields in the form - Floor/
- * Role/Job Title/Type are optional, same reasoning as transitions: no
- * inactive seed user has ever had those fields set, so requiring them
- * would block every reactivation on data that was never there.
+ * Role/Job Title/Type are optional.
  *
- * @param {Object} user - The inactive user being reactivated (from getAllUsers())
+ * @param {Object} user - The inactive user being reactivated (a real,
+ *   backend-adapted user from userService)
  * @param {Object} formData - { department, manager, floor, role, jobTitle, type, selectedPlatforms }
  * @param {Object} submitter - { submittedBy, submittedByRole, submittedByDept }
  * @returns {Object} The new request (not yet persisted - call saveRequest)
@@ -876,30 +454,26 @@ export function createReactivationRequest(user, formData, submitter) {
 }
 
 /**
- * Builds the updated user record once a reactivation request is fully
- * provisioned - flips the existing inactive user back to active with
- * whatever details were reviewed/updated during the request. A blank
- * optional field (floor/role/jobTitle/type) leaves that attribute as-is.
+ * Builds the field changes to apply to the real user record once a
+ * reactivation request is completed (re-enabling the account is a
+ * separate call - userService.enableUser - since it's a distinct
+ * backend endpoint from the field update).
  * @param {Object} request - A reactivation request whose platforms are all completed
- * @returns {Object|null} The user record to persist via saveUser, or null if no matching user exists
+ * @param {Object|null} existingUser - The real user, fetched via userService.getUser
+ * @returns {Object|null} { department, manager, floor, jobTitle, type } to pass to userService.updateUser, or null
  */
-export function buildReactivatedUser(request) {
-  const existing = getAllUsers().find((u) => u.id === request.userId);
-  if (!existing) {
+export function buildReactivatedUser(request, existingUser) {
+  if (!existingUser) {
     return null;
   }
   return {
-    ...existing,
-    status: 'active',
+    ...existingUser,
     department: request.departmentName,
     manager: request.managerName,
-    floor: request.floor || existing.floor,
-    role: request.role || existing.role,
-    jobTitle: request.jobTitleLabel || existing.jobTitle,
+    floor: request.floor || existingUser.floor,
+    role: request.role || existingUser.role,
+    jobTitle: request.jobTitleLabel || existingUser.jobTitle,
     type: request.employeeType === 'external' ? 'External' : 'Internal',
-    dateOnboarded: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    dateOffboarded: null,
-    platforms: request.platforms.map((p) => p.name),
   };
 }
 
@@ -951,99 +525,6 @@ export function withTimelineEvent(request, action, status = 'completed') {
 }
 
 /**
- * Builds the pending user record created immediately when an onboarding
- * request is submitted (before it's approved) - mirrors the seed data's
- * own convention where every pending user already has a matching pending
- * request from day one. buildActivatedUser later finds this same user by
- * email and flips it to active, reusing its id, once the request is
- * approved and every platform is provisioned.
- * @param {Object} request - A freshly created onboarding request
- * @returns {Object} The user record to persist via saveUser
- */
-export function buildPendingUser(request) {
-  return {
-    id: getNextUserId(),
-    name: request.employeeName,
-    email: request.email,
-    status: 'pending',
-    department: request.departmentName,
-    manager: request.managerName,
-    jobTitle: request.jobTitleLabel || null,
-    role: request.role || null,
-    floor: request.floor || null,
-    type: request.employeeType === 'external' ? 'External' : 'Internal',
-    dateOnboarded: new Date().toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    }),
-    dateOffboarded: null,
-    platforms: request.platforms.map((p) => p.name),
-  };
-}
-
-/**
- * Builds the user record that results from a fully-approved onboarding
- * request - a brand-new employee if no user exists yet with this email,
- * or the existing pending user flipped to active.
- * @param {Object} request - An onboarding request whose platforms are all completed
- * @returns {Object} The user record to persist via saveUser
- */
-export function buildActivatedUser(request) {
-  const existing = getAllUsers().find(
-    (u) => u.email.toLowerCase() === request.email.toLowerCase()
-  );
-  const azurePlatform = request.platforms.find((p) => p.name === 'Azure AD');
-  return {
-    id: existing ? existing.id : getNextUserId(),
-    name: request.employeeName,
-    email: request.email,
-    status: 'active',
-    department: request.departmentName,
-    manager: request.managerName,
-    jobTitle: request.jobTitleLabel || existing?.jobTitle || null,
-    role: request.role || existing?.role || null,
-    floor: request.floor || existing?.floor || null,
-    type: request.employeeType ? (request.employeeType === 'external' ? 'External' : 'Internal') : existing?.type || 'Internal',
-    dateOnboarded: new Date().toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    }),
-    dateOffboarded: null,
-    platforms: request.platforms.map((p) => p.name),
-    workEmail: azurePlatform?.workEmail || existing?.workEmail || null,
-    workEmailCreatedAt: azurePlatform?.workEmailCreatedAt || existing?.workEmailCreatedAt || null,
-  };
-}
-
-/**
- * Builds the updated user record after a fully-approved offboarding
- * request completes - flips the existing user to inactive. Inactive users
- * have no manager on file, matching the seed data's own convention.
- * @param {Object} request - An offboarding request whose platforms are all completed
- * @returns {Object|null} The user record to persist via saveUser, or null if no matching user exists
- */
-export function buildDeactivatedUser(request) {
-  const existing = getAllUsers().find(
-    (u) => u.email.toLowerCase() === request.email.toLowerCase()
-  );
-  if (!existing) {
-    return null;
-  }
-  return {
-    ...existing,
-    status: 'inactive',
-    dateOffboarded: new Date().toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    }),
-    manager: null,
-  };
-}
-
-/**
  * ---------------------------------------------------------------------
  * SLA tracking
  * ---------------------------------------------------------------------
@@ -1079,7 +560,7 @@ export function formatDurationHoursMinutes(ms) {
  * elapsed time, or any individual platform's completion time, exceeded
  * the limit.
  *
- * @param {Object} request - A request from getAllRequests()
+ * @param {Object} request - A request from getAllRequests() or requestService
  * @returns {Object|null} SLA status, or null if the request has no createdAt
  */
 export function calculateRequestSLA(request) {
@@ -1151,17 +632,18 @@ export function generateWorkEmail(fullName) {
 }
 
 /**
- * True when an ACTIVE user already has this exact name (case-insensitive,
- * whitespace-trimmed). Used to warn an admin onboarding a new employee
- * that the name collides with someone already on staff - purely
- * informational, never blocks submission.
+ * True when an ACTIVE user in `activeUsers` already has this exact name
+ * (case-insensitive, whitespace-trimmed). Used to warn an admin
+ * onboarding a new employee that the name collides with someone
+ * already on staff - purely informational, never blocks submission.
  * @param {string} fullName
+ * @param {Array} activeUsers - Already-fetched active users (real, from userService)
  * @returns {boolean}
  */
-export function checkDuplicateActiveUser(fullName) {
+export function checkDuplicateActiveUser(fullName, activeUsers) {
   const normalized = (fullName || '').trim().toLowerCase();
-  if (!normalized) return false;
-  return getAllUsers().some((u) => u.status === 'active' && u.name.trim().toLowerCase() === normalized);
+  if (!normalized || !Array.isArray(activeUsers)) return false;
+  return activeUsers.some((u) => u.status === 'active' && u.name.trim().toLowerCase() === normalized);
 }
 
 /**
@@ -1179,13 +661,18 @@ export function generateDuplicateWorkEmail(fullName) {
 }
 
 /**
- * The work email a request's Azure AD platform step has generated so far,
- * if that step has completed.
+ * The work email associated with a request. Real (onboarding/offboarding)
+ * requests carry `.workEmail` directly (joined in from the real user by
+ * requestService); Transition/Reactivation requests fall back to the
+ * old platforms-array convention.
  *
  * @param {Object} request
  * @returns {string|null}
  */
 export function getRequestWorkEmail(request) {
+  if (request?.workEmail) {
+    return request.workEmail;
+  }
   return request?.platforms?.find((p) => p.name === 'Azure AD')?.workEmail || null;
 }
 
@@ -1313,8 +800,6 @@ export function compareMetrics(current, previous, invert = false) {
 const mockData = {
   PLATFORM_ACTIONS,
   PLATFORMS,
-  MOCK_USERS,
-  MOCK_REQUESTS,
   MOCK_ACCOUNTS,
   MOCK_DEPARTMENT_GROUPS,
   AVAILABLE_PLATFORMS,
@@ -1328,35 +813,14 @@ const mockData = {
   TYPE_OPTIONS,
   AZURE_GROUP_MAPPING,
   getMockAccountByEmail,
-  getMockUserById,
-  getMockUserByEmail,
-  getMockRequestById,
-  getMockRequestByEmail,
-  getMockUsersByStatus,
-  getMockRequestsByStatus,
-  getMockUsersByDepartment,
-  getMockUsersByManager,
-  getMockActiveUsers,
-  getMockPendingUsers,
-  getMockPendingRequests,
-  getMockDataSummary,
   getAllRequests,
   getRequestByIdMerged,
   getPendingRequestByEmail,
   saveRequest,
-  getAllUsers,
-  getUserByIdMerged,
-  saveUser,
   getNextRequestId,
-  getNextUserId,
-  createOnboardingRequest,
-  createOffboardingRequest,
   createTransitionRequest,
   createReactivationRequest,
   withTimelineEvent,
-  buildPendingUser,
-  buildActivatedUser,
-  buildDeactivatedUser,
   buildTransitionedUser,
   buildReactivatedUser,
   buildTransitionChangeSummary,

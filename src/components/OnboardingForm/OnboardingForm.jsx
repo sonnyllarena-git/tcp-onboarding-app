@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Step1EmployeeInfo, { validateStep1 } from './Step1EmployeeInfo';
 import Step2PlatformSelection, { validateStep2 } from './Step2PlatformSelection';
@@ -6,8 +6,9 @@ import Step3Review from './Step3Review';
 import CancelConfirmationModal from './CancelConfirmationModal';
 import SuccessModal from './SuccessModal';
 import { useAuth } from '../../hooks/useAuth';
-import { createOnboardingRequest, withTimelineEvent, saveRequest, buildPendingUser, saveUser } from '../../mockData';
-import { recordAuditLog } from '../AuditLogs';
+import { generateWorkEmail, generateDuplicateWorkEmail, checkDuplicateActiveUser } from '../../mockData';
+import * as userService from '../../services/userService';
+import * as requestService from '../../services/requestService';
 
 const TOTAL_STEPS = 3;
 
@@ -54,7 +55,31 @@ function OnboardingForm() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
   const [submittedRequest, setSubmittedRequest] = useState(null);
+  const [activeUsers, setActiveUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+
+  // Fetched once here (not in Step1EmployeeInfo) since it's a real,
+  // async backend call now instead of a synchronous mock lookup - the
+  // manager dropdown and the duplicate-name check both need it.
+  useEffect(() => {
+    let cancelled = false;
+    userService
+      .getAllUsers()
+      .then((users) => {
+        if (!cancelled) setActiveUsers(users.filter((u) => u.status === 'active'));
+      })
+      .catch((error) => {
+        console.error('[OnboardingForm] failed to load users:', error.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingUsers(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleDataChange = (updates) => {
     setFormData((prev) => ({ ...prev, ...updates }));
@@ -89,37 +114,47 @@ function OnboardingForm() {
     setShowCancelConfirm(false);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setSubmitting(true);
-    // TODO: Replace with a real API call to submit the onboarding request.
-    setTimeout(() => {
-      const baseRequest = createOnboardingRequest({
-        ...formData,
+    setSubmitError(null);
+    try {
+      // Real Azure AD account creation happens now, at submission time
+      // (the backend requires a work email up front) - the old mock
+      // flow deferred this to the platform-provisioning step, so the
+      // work email is generated here with the same naming convention
+      // it always used (firstname@, or firstname.lastname@ on a
+      // duplicate-name collision) rather than asking for a new field.
+      const isDuplicate = checkDuplicateActiveUser(formData.employeeName, activeUsers);
+      const workEmail = isDuplicate
+        ? generateDuplicateWorkEmail(formData.employeeName)
+        : generateWorkEmail(formData.employeeName);
+
+      const createdUser = await userService.createUser({ ...formData, workEmail });
+
+      const createdRequest = await requestService.submitOnboardingRequest({
+        userId: createdUser.id,
         submittedBy: user?.name || 'Unknown User',
-        submittedByRole: user?.role || 'Unknown',
-        submittedByDept: user?.department || 'Unknown',
-      });
-      const newRequest = withTimelineEvent(baseRequest, 'Request Created', 'completed');
-      saveRequest(newRequest);
-      // Create the pending user immediately, matching the seed data's own
-      // convention where every pending user already has a request on day
-      // one - RequestDetails' Approve flow later finds this same user by
-      // email and flips it to active once every platform is provisioned.
-      saveUser(buildPendingUser(newRequest));
-
-      recordAuditLog({
-        userEmail: user?.email || 'unknown',
-        userName: user?.name || 'Unknown User',
-        department: user?.department || 'Unknown',
-        action: 'ONBOARDING_SUBMITTED',
-        requestId: newRequest.id,
-        details: `${formData.employeeName} — ${formData.departmentName}`,
+        department: formData.departmentName,
+        manager: formData.managerName,
+        floor: formData.floor,
+        role: formData.role,
+        jobTitle: formData.jobTitleLabel,
+        type: formData.employeeTypeLabel || 'Internal',
+        platforms: formData.selectedPlatforms,
       });
 
-      setSubmittedRequest(newRequest);
-      setSubmitting(false);
+      // No local recordAuditLog here - the backend already records
+      // ONBOARDING_SUBMITTED for this call (see backend/routes/requests.js),
+      // and AuditLogs.jsx merges that real entry in automatically.
+
+      setSubmittedRequest({ id: createdRequest.id, employeeName: formData.employeeName });
       setShowSuccessModal(true);
-    }, 1500);
+    } catch (error) {
+      console.error('[OnboardingForm] submit failed:', error.message);
+      setSubmitError(error.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleSuccessClose = () => {
@@ -171,6 +206,8 @@ function OnboardingForm() {
             onDataChange={handleDataChange}
             onNext={handleNext}
             onCancel={handleCancel}
+            activeUsers={activeUsers}
+            loadingUsers={loadingUsers}
           />
         )}
         {currentStep === 2 && (
@@ -189,6 +226,7 @@ function OnboardingForm() {
             onBack={handleBack}
             onCancel={handleCancel}
             submitting={submitting}
+            error={submitError}
           />
         )}
       </div>

@@ -1,13 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   getRequestByIdMerged,
   getAllRequests,
-  getUserByIdMerged,
   saveRequest,
-  saveUser,
-  buildActivatedUser,
-  buildDeactivatedUser,
   buildTransitionedUser,
   buildReactivatedUser,
   buildTransitionChangeSummary,
@@ -18,6 +14,8 @@ import {
   generateDuplicateWorkEmail,
   getRequestWorkEmail,
 } from '../../mockData';
+import { getRequest, updateRequestStatus, updatePlatformStatus, isRealRequestId, listRequests } from '../../services/requestService';
+import { getUser, updateUser, enableUser, disableUser } from '../../services/userService';
 import { useAuth } from '../../hooks/useAuth';
 import { recordAuditLog } from '../AuditLogs';
 import { NotFoundPage } from '../ErrorState';
@@ -55,8 +53,11 @@ function RequestDetails() {
   const location = useLocation();
   const loggedInUser = useAuth();
   const isAdmin = loggedInUser?.role === 'ADMIN';
+  const isReal = isRealRequestId(id);
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [relatedRequests, setRelatedRequests] = useState([]);
 
   // Offboarding: a single confirm modal per not-yet-completed platform.
   const [offboardPlatformToConfirm, setOffboardPlatformToConfirm] = useState(null);
@@ -77,13 +78,63 @@ function RequestDetails() {
 
   const fromManageUsers = Boolean(location.state?.fromManageUsers);
 
-  useEffect(() => {
-    const req = getRequestByIdMerged(Number(id));
-    if (req) {
-      setRequest(req);
+  // Real (Onboarding/Offboarding) requests come from the backend;
+  // Transition/Reactivation requests stay on the local mock pipeline -
+  // see mockData.js's header comment for why.
+  const loadRequest = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      if (isReal) {
+        const data = await getRequest(id);
+        setRequest(data);
+      } else {
+        const req = getRequestByIdMerged(Number(id));
+        setRequest(req || null);
+      }
+    } catch (error) {
+      console.error('[RequestDetails] failed to load request:', error.message);
+      setRequest(null);
+      setLoadError(error.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [id]);
+  }, [id, isReal]);
+
+  useEffect(() => {
+    loadRequest();
+  }, [loadRequest]);
+
+  // "Other requests for this employee": real onboarding/offboarding
+  // history comes from the backend (filtered by userId); Transition/
+  // Reactivation history comes from the local mock store (filtered by
+  // email, as before) - merged into one list.
+  useEffect(() => {
+    if (!request) {
+      setRelatedRequests([]);
+      return;
+    }
+    let cancelled = false;
+    async function loadRelated() {
+      const mockRelated = getAllRequests().filter(
+        (r) => r.id !== request.id && r.email.toLowerCase() === request.email.toLowerCase()
+      );
+      let realRelated = [];
+      if (request.userId) {
+        try {
+          const all = await listRequests({ userId: request.userId });
+          realRelated = all.filter((r) => r.id !== request.id);
+        } catch (error) {
+          console.error('[RequestDetails] failed to load related requests:', error.message);
+        }
+      }
+      if (!cancelled) setRelatedRequests([...realRelated, ...mockRelated]);
+    }
+    loadRelated();
+    return () => {
+      cancelled = true;
+    };
+  }, [request]);
 
   const logWorkflowEvent = (action, details, extra = {}) => {
     recordAuditLog({
@@ -97,6 +148,10 @@ function RequestDetails() {
     });
   };
 
+  const isTransition = request?.type === 'Transition';
+  const isReactivation = request?.type === 'Reactivation';
+  const isOffboarding = request?.type === 'Offboarding';
+
   // ---- Offboarding & Transition: manual-only per platform ----
 
   const handleOffboardPlatformClick = (platformName) => {
@@ -106,36 +161,44 @@ function RequestDetails() {
     setOffboardPlatformToConfirm(platformName);
   };
 
-  const confirmManualOffboarding = () => {
+  const confirmManualOffboarding = async () => {
     if (!request || !offboardPlatformToConfirm) return;
     const platformName = offboardPlatformToConfirm;
-    const isTransitionRequest = request.type === 'Transition';
-    let updated = {
-      ...request,
-      platforms: request.platforms.map((p) =>
-        p.name === platformName
-          ? { ...p, status: 'completed', completedBy: loggedInUser?.name || 'Unknown', completedAt: new Date().toISOString(), error: null }
-          : p
-      ),
-    };
-    updated = withTimelineEvent(
-      updated,
-      isTransitionRequest ? `Platform access updated: ${platformName}` : `Platform manually offboarded: ${platformName}`,
-      'completed'
-    );
-    saveRequest(updated);
-    setRequest(updated);
-    logWorkflowEvent(
-      isTransitionRequest ? 'TRANSITION_PLATFORM_UPDATED' : 'PLATFORM_OFFBOARDED_MANUAL',
-      `${platformName} ${isTransitionRequest ? 'access updated' : 'manually offboarded'} for ${updated.employeeName}`,
-      { platformName }
-    );
     setOffboardPlatformToConfirm(null);
+
+    if (isTransition) {
+      // Transition stays on the mock pipeline - no backend platform tracking for it.
+      let updated = {
+        ...request,
+        platforms: request.platforms.map((p) =>
+          p.name === platformName
+            ? { ...p, status: 'completed', completedBy: loggedInUser?.name || 'Unknown', completedAt: new Date().toISOString(), error: null }
+            : p
+        ),
+      };
+      updated = withTimelineEvent(updated, `Platform access updated: ${platformName}`, 'completed');
+      saveRequest(updated);
+      setRequest(updated);
+      logWorkflowEvent('TRANSITION_PLATFORM_UPDATED', `${platformName} access updated for ${updated.employeeName}`, { platformName });
+      return;
+    }
+
+    // Offboarding - real backend. The backend auto-records the audit
+    // entry for this, so no manual logWorkflowEvent call is needed.
+    try {
+      await updatePlatformStatus(request.id, platformName, {
+        status: 'COMPLETED - BY IT',
+        completedBy: loggedInUser?.name || 'Unknown',
+      });
+      await loadRequest();
+    } catch (error) {
+      console.error('[RequestDetails] manual offboarding failed:', error.message);
+    }
   };
 
   // ---- Onboarding: automation trigger, then manual fallback on failure ----
 
-  const handleOnboardPlatformClick = (platform) => {
+  const handleOnboardPlatformClick = async (platform) => {
     if (!isAdmin || !request || request.status !== 'pending' || automatingPlatform) return;
     if (platform.status === 'completed') return;
 
@@ -143,12 +206,9 @@ function RequestDetails() {
       platform.name === 'Azure AD' &&
       platform.status !== 'failed' &&
       !request.confirmedWorkEmail &&
-      (request.hasDuplicateName || request.type === 'Reactivation');
+      request.hasDuplicateName;
     if (needsEmailConfirm) {
-      const existingUser = request.userId ? getUserByIdMerged(request.userId) : null;
-      const suggested =
-        (request.type === 'Reactivation' && existingUser?.workEmail) ||
-        (request.hasDuplicateName ? generateDuplicateWorkEmail(request.employeeName) : generateWorkEmail(request.employeeName));
+      const suggested = generateDuplicateWorkEmail(request.employeeName);
       setAzureEmailInput(suggested);
       setAzureEmailModal(true);
       return;
@@ -164,13 +224,13 @@ function RequestDetails() {
   const confirmAzureEmail = () => {
     if (!azureEmailInput.trim() || !request) return;
     const updated = { ...request, confirmedWorkEmail: azureEmailInput.trim() };
-    saveRequest(updated);
+    if (isReactivation) {
+      saveRequest(updated);
+    }
     setRequest(updated);
     logWorkflowEvent(
-      request.type === 'Reactivation' ? 'AZURE_REACTIVATION_EMAIL_CONFIRMED' : 'AZURE_DUPLICATE_EMAIL_CONFIRMED',
-      request.type === 'Reactivation'
-        ? `Work email confirmed for reactivation: ${updated.confirmedWorkEmail}`
-        : `Duplicate name detected. IT confirmed email: ${updated.confirmedWorkEmail}`,
+      'AZURE_DUPLICATE_EMAIL_CONFIRMED',
+      `Duplicate name detected. IT confirmed email: ${updated.confirmedWorkEmail}`,
       { platformName: 'Azure AD' }
     );
     setAzureEmailModal(false);
@@ -191,54 +251,71 @@ function RequestDetails() {
     const errorMessage = `Failed to provision ${platformName} - authentication timeout`;
     const isAzureAd = platformName === 'Azure AD';
     const workEmail = isAzureAd ? request.confirmedWorkEmail || generateWorkEmail(request.employeeName) : null;
-    let updated;
 
-    if (failed) {
-      updated = {
-        ...request,
-        platforms: request.platforms.map((p) =>
-          p.name === platformName ? { ...p, status: 'failed', error: errorMessage } : p
-        ),
-      };
-      updated = withTimelineEvent(updated, `Platform automation failed: ${platformName}`, 'in-progress');
+    if (isReactivation) {
+      // Reactivation stays on the mock pipeline.
+      let updated;
+      if (failed) {
+        updated = {
+          ...request,
+          platforms: request.platforms.map((p) => (p.name === platformName ? { ...p, status: 'failed', error: errorMessage } : p)),
+        };
+        updated = withTimelineEvent(updated, `Platform automation failed: ${platformName}`, 'in-progress');
+      } else {
+        updated = {
+          ...request,
+          platforms: request.platforms.map((p) =>
+            p.name === platformName
+              ? {
+                  ...p,
+                  status: 'completed',
+                  completedBy: null,
+                  completedAt: new Date().toISOString(),
+                  error: null,
+                  ...(isAzureAd ? { workEmail, workEmailCreatedAt: new Date().toISOString() } : {}),
+                }
+              : p
+          ),
+        };
+        updated = withTimelineEvent(
+          updated,
+          isAzureAd ? `Azure AD account created: ${workEmail}` : `Platform provisioned automatically: ${platformName}`,
+          'completed'
+        );
+      }
+      saveRequest(updated);
+      setRequest(updated);
+      if (failed) {
+        logWorkflowEvent('PLATFORM_PROVISION_FAILED', `${platformName} automation failed for ${updated.employeeName}`, {
+          platformName,
+          errorMessage,
+          status: 'FAILED',
+        });
+      } else if (isAzureAd) {
+        logWorkflowEvent('AZURE_ACCOUNT_CREATED', `Azure account created - ${workEmail}`, { platformName, workEmail });
+      } else {
+        logWorkflowEvent('PLATFORM_PROVISIONED_AUTOMATED', `${platformName} provisioned automatically for ${updated.employeeName}`, { platformName });
+      }
     } else {
-      updated = {
-        ...request,
-        platforms: request.platforms.map((p) =>
-          p.name === platformName
-            ? {
-                ...p,
-                status: 'completed',
-                completedBy: null,
-                completedAt: new Date().toISOString(),
-                error: null,
-                ...(isAzureAd ? { workEmail, workEmailCreatedAt: new Date().toISOString() } : {}),
-              }
-            : p
-        ),
-      };
-      updated = withTimelineEvent(
-        updated,
-        isAzureAd ? `Azure AD account created: ${workEmail}` : `Platform provisioned automatically: ${platformName}`,
-        'completed'
-      );
+      // Onboarding - real backend. The workEmail was already set when the
+      // real Azure user was created (see userService.createUser) - this
+      // step just confirms the platform as provisioned. The backend
+      // auto-records the audit entry, so no manual logWorkflowEvent here.
+      try {
+        if (failed) {
+          await updatePlatformStatus(request.id, platformName, { status: 'FAILED', errorMessage });
+        } else {
+          await updatePlatformStatus(request.id, platformName, { status: 'COMPLETED - AUTOMATED' });
+        }
+        await loadRequest();
+      } catch (error) {
+        console.error('[RequestDetails] platform automation failed:', error.message);
+      }
     }
 
-    saveRequest(updated);
-    setRequest(updated);
     setAutomatingPlatform(null);
-
     if (failed) {
-      logWorkflowEvent('PLATFORM_PROVISION_FAILED', `${platformName} automation failed for ${updated.employeeName}`, {
-        platformName,
-        errorMessage,
-        status: 'FAILED',
-      });
       setPlatformModal({ platformName, mode: 'error' });
-    } else if (isAzureAd) {
-      logWorkflowEvent('AZURE_ACCOUNT_CREATED', `Azure account created - ${workEmail}`, { platformName, workEmail });
-    } else {
-      logWorkflowEvent('PLATFORM_PROVISIONED_AUTOMATED', `${platformName} provisioned automatically for ${updated.employeeName}`, { platformName });
     }
   };
 
@@ -246,11 +323,17 @@ function RequestDetails() {
     if (!platformModal || !request) return;
     const platformName = platformModal.platformName;
     const ticketId = `TCP-${Math.floor(Math.random() * 10000)}`;
+    // Jira ticket id is decorative only - neither backend schema tracks
+    // it, so for a real (Onboarding) request this is local-state only
+    // and won't survive a reload. Reactivation keeps the existing mock
+    // persistence since that store already has no such limitation.
     const updated = {
       ...request,
       platforms: request.platforms.map((p) => (p.name === platformName ? { ...p, jiraTicketId: ticketId } : p)),
     };
-    saveRequest(updated);
+    if (isReactivation) {
+      saveRequest(updated);
+    }
     setRequest(updated);
     logWorkflowEvent('JIRA_TICKET_CREATED', `Jira ticket ${ticketId} created for ${platformName} provisioning failure (${updated.employeeName})`, {
       platformName,
@@ -259,68 +342,112 @@ function RequestDetails() {
     setPlatformModal({ platformName, mode: 'error' });
   };
 
-  const confirmManualOnboard = () => {
+  const confirmManualOnboard = async () => {
     if (!platformModal || !request) return;
     const platformName = platformModal.platformName;
     const isAzureAd = platformName === 'Azure AD';
     const workEmail = isAzureAd ? request.confirmedWorkEmail || generateWorkEmail(request.employeeName) : null;
-    let updated = {
-      ...request,
-      platforms: request.platforms.map((p) =>
-        p.name === platformName
-          ? {
-              ...p,
-              status: 'completed',
-              completedBy: loggedInUser?.name || 'Unknown',
-              completedAt: new Date().toISOString(),
-              ...(isAzureAd ? { workEmail, workEmailCreatedAt: new Date().toISOString() } : {}),
-            }
-          : p
-      ),
-    };
-    updated = withTimelineEvent(updated, `Platform manually provisioned: ${platformName}`, 'completed');
-    saveRequest(updated);
-    setRequest(updated);
-    logWorkflowEvent('PLATFORM_PROVISIONED_MANUAL', `${platformName} manually provisioned by ${loggedInUser?.name} for ${updated.employeeName}`, { platformName });
+
+    if (isReactivation) {
+      let updated = {
+        ...request,
+        platforms: request.platforms.map((p) =>
+          p.name === platformName
+            ? {
+                ...p,
+                status: 'completed',
+                completedBy: loggedInUser?.name || 'Unknown',
+                completedAt: new Date().toISOString(),
+                ...(isAzureAd ? { workEmail, workEmailCreatedAt: new Date().toISOString() } : {}),
+              }
+            : p
+        ),
+      };
+      updated = withTimelineEvent(updated, `Platform manually provisioned: ${platformName}`, 'completed');
+      saveRequest(updated);
+      setRequest(updated);
+      logWorkflowEvent('PLATFORM_PROVISIONED_MANUAL', `${platformName} manually provisioned by ${loggedInUser?.name} for ${updated.employeeName}`, { platformName });
+      setPlatformModal(null);
+      return;
+    }
+
+    try {
+      await updatePlatformStatus(request.id, platformName, {
+        status: 'COMPLETED - BY IT',
+        completedBy: loggedInUser?.name || 'Unknown',
+      });
+      await loadRequest();
+    } catch (error) {
+      console.error('[RequestDetails] manual onboard failed:', error.message);
+    }
     setPlatformModal(null);
   };
 
   // ---- Finalize (either type) once every platform is completed ----
 
-  const handleCompleteRequest = () => {
+  const handleCompleteRequest = async () => {
     if (!isAdmin || !request || !request.platforms.every((p) => p.status === 'completed')) return;
-    const isOffboarding = request.type === 'Offboarding';
-    const isTransition = request.type === 'Transition';
-    const isReactivation = request.type === 'Reactivation';
 
-    let updated = { ...request, status: 'completed' };
-    updated.approvedBy = loggedInUser?.name || 'Unknown';
-    updated.approvedByRole = loggedInUser?.role || 'Unknown';
-    updated.completedAt = new Date().toISOString();
+    if (isTransition || isReactivation) {
+      // Mock-tracked request; the field changes land on the REAL user.
+      let updated = { ...request, status: 'completed' };
+      updated.approvedBy = loggedInUser?.name || 'Unknown';
+      updated.approvedByRole = loggedInUser?.role || 'Unknown';
+      updated.completedAt = new Date().toISOString();
 
-    if (isTransition) {
-      const transitioned = buildTransitionedUser(updated);
-      if (transitioned) saveUser(transitioned);
-      updated = withTimelineEvent(updated, 'Transition Completed', 'completed');
-      logWorkflowEvent('TRANSITION_COMPLETED', `${updated.employeeName}: ${buildTransitionChangeSummary(updated)}`);
-    } else if (isReactivation) {
-      const reactivated = buildReactivatedUser(updated);
-      if (reactivated) saveUser(reactivated);
-      updated = withTimelineEvent(updated, 'User Reactivated', 'completed');
-      logWorkflowEvent('REACTIVATION_COMPLETED', `${updated.employeeName} reactivated - Department: ${updated.departmentName}`);
-    } else if (isOffboarding) {
-      const deactivated = buildDeactivatedUser(updated);
-      if (deactivated) saveUser(deactivated);
-      updated = withTimelineEvent(updated, 'User Offboarded', 'completed');
-      logWorkflowEvent('OFFBOARDING_APPROVED', `${updated.employeeName} offboarding completed`);
-    } else {
-      saveUser(buildActivatedUser(updated));
-      updated = withTimelineEvent(updated, 'User Activated', 'completed');
-      logWorkflowEvent('ONBOARDING_APPROVED', `${updated.employeeName} onboarding completed`);
+      try {
+        const existingUser = request.userId ? await getUser(request.userId) : null;
+        if (isTransition) {
+          const transitioned = buildTransitionedUser(updated, existingUser);
+          if (transitioned) {
+            await updateUser(existingUser.id, {
+              department: transitioned.department,
+              manager: transitioned.manager,
+              floor: transitioned.floor,
+              jobTitle: transitioned.jobTitle,
+              type: transitioned.type,
+            });
+          }
+          updated = withTimelineEvent(updated, 'Transition Completed', 'completed');
+          logWorkflowEvent('TRANSITION_COMPLETED', `${updated.employeeName}: ${buildTransitionChangeSummary(updated)}`);
+        } else {
+          const reactivated = buildReactivatedUser(updated, existingUser);
+          if (reactivated) {
+            await enableUser(existingUser.id);
+            await updateUser(existingUser.id, {
+              department: reactivated.department,
+              manager: reactivated.manager,
+              floor: reactivated.floor,
+              jobTitle: reactivated.jobTitle,
+              type: reactivated.type,
+            });
+          }
+          updated = withTimelineEvent(updated, 'User Reactivated', 'completed');
+          logWorkflowEvent('REACTIVATION_COMPLETED', `${updated.employeeName} reactivated - Department: ${updated.departmentName}`);
+        }
+      } catch (error) {
+        console.error('[RequestDetails] failed to update the real user record:', error.message);
+        return;
+      }
+
+      saveRequest(updated);
+      setRequest(updated);
+      return;
     }
 
-    saveRequest(updated);
-    setRequest(updated);
+    // Onboarding/Offboarding - real backend. The backend auto-records
+    // the completion audit entry, so no manual logWorkflowEvent here.
+    try {
+      await updateRequestStatus(request.id, 'COMPLETED');
+      if (isOffboarding) {
+        await disableUser(request.userId);
+      } else {
+        await enableUser(request.userId);
+      }
+      await loadRequest();
+    } catch (error) {
+      console.error('[RequestDetails] failed to complete request:', error.message);
+    }
   };
 
   // ---- Post-completion: welcome email to the employee's onboarding email ----
@@ -328,23 +455,25 @@ function RequestDetails() {
   const handleSendWelcomeEmail = () => {
     if (!isAdmin || !request) return;
     const sentAt = new Date().toISOString();
-    let updated = { ...request, welcomeEmailSentAt: sentAt };
-    updated = withTimelineEvent(updated, `Welcome email sent to ${request.email}`, 'completed');
-    saveRequest(updated);
-    setRequest(updated);
+    // Decorative only (no backend column for it) - kept in local state so
+    // it doesn't survive a reload for real (Onboarding) requests.
+    setRequest({ ...request, welcomeEmailSentAt: sentAt });
     logWorkflowEvent('WELCOME_EMAIL_SENT', `Welcome email sent to ${request.email}`, { status: 'SUCCESS' });
     setShowWelcomeEmailModal(true);
   };
 
   if (loading) return <div className="p-6 text-white">Loading...</div>;
-  if (!request) return <NotFoundPage />;
+  if (!request) {
+    if (loadError) {
+      return (
+        <div className="mx-auto max-w-2xl p-6">
+          <div className="rounded-xl border border-[#f56565]/40 bg-[#f56565]/10 p-6 text-sm text-[#f56565]">{loadError}</div>
+        </div>
+      );
+    }
+    return <NotFoundPage />;
+  }
 
-  const isOffboarding = request.type === 'Offboarding';
-  const isTransition = request.type === 'Transition';
-  const isReactivation = request.type === 'Reactivation';
-  const relatedRequests = getAllRequests().filter(
-    (r) => r.id !== request.id && r.email.toLowerCase() === request.email.toLowerCase()
-  );
   const allPlatformsCompleted = request.platforms.every((p) => p.status === 'completed');
   const activeModalPlatform =
     platformModal && request.platforms.find((p) => p.name === platformModal.platformName);
@@ -956,7 +1085,7 @@ function RequestDetails() {
             <h2 className="mb-3 text-lg font-bold text-white">Welcome Email Sent</h2>
             <p className="mb-4 text-sm text-gray-300">
               A welcome email has been sent to <strong>{request.email}</strong>
-              
+
             </p>
             <button
               type="button"

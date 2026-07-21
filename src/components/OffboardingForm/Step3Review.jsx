@@ -45,7 +45,7 @@ function formatIsoDate(isoDateString) {
  * @param {boolean} [submitting] - Whether the mock submission is in progress
  * @returns {React.ReactElement} Step 3 component
  */
-function Step3Review({ formData, onDataChange, onSubmit, onBack, onCancel, submitting = false }) {
+function Step3Review({ formData, onDataChange, onSubmit, onBack, onCancel, submitting = false, error = null }) {
   const [showConfirmPrompt, setShowConfirmPrompt] = useState(false);
 
   const handleSubmitClick = () => {
@@ -133,6 +133,11 @@ function Step3Review({ formData, onDataChange, onSubmit, onBack, onCancel, submi
         I confirm this employee should be offboarded.
       </label>
 
+      {error && (
+        <div role="alert" className="mb-4 rounded border-l-4 border-red-500 bg-red-500/10 p-3 text-sm text-red-300">
+          {error}
+        </div>
+      )}
       <div className="flex justify-between">
         <button
           type="button"

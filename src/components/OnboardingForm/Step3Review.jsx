@@ -1,6 +1,11 @@
-function Step3Review({ formData, onSubmit, onBack, onCancel, submitting }) {
+function Step3Review({ formData, onSubmit, onBack, onCancel, submitting, error }) {
   return (
     <div className="space-y-4">
+      {error && (
+        <div role="alert" className="rounded border-l-4 border-red-500 bg-red-500/10 p-3 text-sm text-red-300">
+          {error}
+        </div>
+      )}
       <div className="bg-[#0d1b30] p-4 rounded text-gray-300 space-y-2">
         <p><strong>Name:</strong> {formData.employeeName}</p>
         <p><strong>Email:</strong> {formData.email}</p>

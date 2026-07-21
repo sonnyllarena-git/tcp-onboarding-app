@@ -1,4 +1,4 @@
-import { MOCK_DEPARTMENT_GROUPS, MOCK_JOB_TITLES, ROLE_OPTIONS, FLOOR_OPTIONS, getAllUsers, checkDuplicateActiveUser } from '../../mockData';
+import { MOCK_DEPARTMENT_GROUPS, MOCK_JOB_TITLES, ROLE_OPTIONS, FLOOR_OPTIONS, checkDuplicateActiveUser } from '../../mockData';
 
 export function validateStep1(formData) {
   return formData.employeeName && formData.email && formData.startDate &&
@@ -7,9 +7,9 @@ export function validateStep1(formData) {
          formData.employeeType && formData.azureGroupId;
 }
 
-function Step1EmployeeInfo({ formData, onDataChange, onNext, onCancel }) {
-  const managers = getAllUsers().filter(u => u.status === 'active');
-  const isDuplicate = checkDuplicateActiveUser(formData.employeeName);
+function Step1EmployeeInfo({ formData, onDataChange, onNext, onCancel, activeUsers = [], loadingUsers = false }) {
+  const managers = activeUsers;
+  const isDuplicate = checkDuplicateActiveUser(formData.employeeName, activeUsers);
 
   return (
     <div className="space-y-4">
@@ -17,7 +17,7 @@ function Step1EmployeeInfo({ formData, onDataChange, onNext, onCancel }) {
         type="text"
         placeholder="Employee Name"
         value={formData.employeeName}
-        onChange={(e) => onDataChange({ employeeName: e.target.value, hasDuplicateName: checkDuplicateActiveUser(e.target.value) })}
+        onChange={(e) => onDataChange({ employeeName: e.target.value, hasDuplicateName: checkDuplicateActiveUser(e.target.value, activeUsers) })}
         className="w-full p-2 rounded bg-[#0d1b30] text-white border border-[#d4a574]/30"
       />
       {isDuplicate && (
@@ -67,12 +67,12 @@ function Step1EmployeeInfo({ formData, onDataChange, onNext, onCancel }) {
       <select
         value={formData.managerId}
         onChange={(e) => {
-          const mgr = managers.find(m => m.id === Number(e.target.value));
+          const mgr = managers.find(m => String(m.id) === e.target.value);
           onDataChange({ managerId: e.target.value, managerName: mgr?.name || '' });
         }}
         className="w-full p-2 rounded bg-[#0d1b30] text-white border border-[#d4a574]/30"
       >
-        <option value="">Select Manager</option>
+        <option value="">{loadingUsers ? 'Loading managers...' : 'Select Manager'}</option>
         {managers.map(m => (
           <option key={m.id} value={m.id}>{m.name}</option>
         ))}
