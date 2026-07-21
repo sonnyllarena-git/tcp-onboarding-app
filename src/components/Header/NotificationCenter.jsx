@@ -5,9 +5,10 @@ import { getAllAuditLogs } from '../AuditLogs';
 const MAX_ACTIVITIES = 20;
 const LAST_READ_STORAGE_KEY = 'tcp_notifications_last_read';
 
-// Only the onboarding/offboarding/transition workflow events are shown
-// here - the full audit log (logins, CSV imports, platform clicks, ...)
-// is a much broader admin tool, already available at /audit-logs.
+// Only the onboarding/offboarding/transition/reactivation workflow
+// events are shown here - the full audit log (logins, CSV imports,
+// platform clicks, ...) is a much broader admin tool, already available
+// at /audit-logs.
 const ACTION_ICONS = {
   ONBOARDING_SUBMITTED: '📝',
   ONBOARDING_APPROVED: '✅',
@@ -15,6 +16,8 @@ const ACTION_ICONS = {
   OFFBOARDING_APPROVED: '✅',
   TRANSITION_REQUEST_SUBMITTED: '🔄',
   TRANSITION_COMPLETED: '✅',
+  REACTIVATION_REQUEST_SUBMITTED: '🔁',
+  REACTIVATION_COMPLETED: '✅',
 };
 
 const ACTION_LABELS = {
@@ -23,6 +26,8 @@ const ACTION_LABELS = {
   OFFBOARDING_SUBMITTED: 'Offboarding Submitted',
   OFFBOARDING_APPROVED: 'Offboarding Completed',
   TRANSITION_REQUEST_SUBMITTED: 'Transition Submitted',
+  REACTIVATION_REQUEST_SUBMITTED: 'Reactivation Submitted',
+  REACTIVATION_COMPLETED: 'Reactivation Completed',
   TRANSITION_COMPLETED: 'Transition Completed',
 };
 

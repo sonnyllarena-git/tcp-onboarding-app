@@ -3,16 +3,19 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   getRequestByIdMerged,
   getAllRequests,
+  getUserByIdMerged,
   saveRequest,
   saveUser,
   buildActivatedUser,
   buildDeactivatedUser,
   buildTransitionedUser,
+  buildReactivatedUser,
   buildTransitionChangeSummary,
   withTimelineEvent,
   calculateRequestSLA,
   getSLAStatusText,
   generateWorkEmail,
+  generateDuplicateWorkEmail,
   getRequestWorkEmail,
 } from '../../mockData';
 import { useAuth } from '../../hooks/useAuth';
@@ -65,6 +68,12 @@ function RequestDetails() {
   const [automatingPlatform, setAutomatingPlatform] = useState(null);
 
   const [showWelcomeEmailModal, setShowWelcomeEmailModal] = useState(false);
+
+  // Azure AD work-email confirmation, shown before the normal trigger
+  // modal when the name collides with an existing active employee, or
+  // this is a reactivation (where IT may want to reuse the old mailbox).
+  const [azureEmailModal, setAzureEmailModal] = useState(false);
+  const [azureEmailInput, setAzureEmailInput] = useState('');
 
   const fromManageUsers = Boolean(location.state?.fromManageUsers);
 
@@ -129,11 +138,43 @@ function RequestDetails() {
   const handleOnboardPlatformClick = (platform) => {
     if (!isAdmin || !request || request.status !== 'pending' || automatingPlatform) return;
     if (platform.status === 'completed') return;
+
+    const needsEmailConfirm =
+      platform.name === 'Azure AD' &&
+      platform.status !== 'failed' &&
+      !request.confirmedWorkEmail &&
+      (request.hasDuplicateName || request.type === 'Reactivation');
+    if (needsEmailConfirm) {
+      const existingUser = request.userId ? getUserByIdMerged(request.userId) : null;
+      const suggested =
+        (request.type === 'Reactivation' && existingUser?.workEmail) ||
+        (request.hasDuplicateName ? generateDuplicateWorkEmail(request.employeeName) : generateWorkEmail(request.employeeName));
+      setAzureEmailInput(suggested);
+      setAzureEmailModal(true);
+      return;
+    }
+
     if (platform.status === 'failed') {
       setPlatformModal({ platformName: platform.name, mode: 'error' });
     } else {
       setPlatformModal({ platformName: platform.name, mode: 'trigger' });
     }
+  };
+
+  const confirmAzureEmail = () => {
+    if (!azureEmailInput.trim() || !request) return;
+    const updated = { ...request, confirmedWorkEmail: azureEmailInput.trim() };
+    saveRequest(updated);
+    setRequest(updated);
+    logWorkflowEvent(
+      request.type === 'Reactivation' ? 'AZURE_REACTIVATION_EMAIL_CONFIRMED' : 'AZURE_DUPLICATE_EMAIL_CONFIRMED',
+      request.type === 'Reactivation'
+        ? `Work email confirmed for reactivation: ${updated.confirmedWorkEmail}`
+        : `Duplicate name detected. IT confirmed email: ${updated.confirmedWorkEmail}`,
+      { platformName: 'Azure AD' }
+    );
+    setAzureEmailModal(false);
+    setPlatformModal({ platformName: 'Azure AD', mode: 'trigger' });
   };
 
   const confirmTriggerAutomation = async () => {
@@ -149,7 +190,7 @@ function RequestDetails() {
     const failed = Math.random() < AUTOMATION_FAILURE_CHANCE;
     const errorMessage = `Failed to provision ${platformName} - authentication timeout`;
     const isAzureAd = platformName === 'Azure AD';
-    const workEmail = isAzureAd ? generateWorkEmail(request.employeeName) : null;
+    const workEmail = isAzureAd ? request.confirmedWorkEmail || generateWorkEmail(request.employeeName) : null;
     let updated;
 
     if (failed) {
@@ -222,7 +263,7 @@ function RequestDetails() {
     if (!platformModal || !request) return;
     const platformName = platformModal.platformName;
     const isAzureAd = platformName === 'Azure AD';
-    const workEmail = isAzureAd ? generateWorkEmail(request.employeeName) : null;
+    const workEmail = isAzureAd ? request.confirmedWorkEmail || generateWorkEmail(request.employeeName) : null;
     let updated = {
       ...request,
       platforms: request.platforms.map((p) =>
@@ -250,6 +291,7 @@ function RequestDetails() {
     if (!isAdmin || !request || !request.platforms.every((p) => p.status === 'completed')) return;
     const isOffboarding = request.type === 'Offboarding';
     const isTransition = request.type === 'Transition';
+    const isReactivation = request.type === 'Reactivation';
 
     let updated = { ...request, status: 'completed' };
     updated.approvedBy = loggedInUser?.name || 'Unknown';
@@ -261,6 +303,11 @@ function RequestDetails() {
       if (transitioned) saveUser(transitioned);
       updated = withTimelineEvent(updated, 'Transition Completed', 'completed');
       logWorkflowEvent('TRANSITION_COMPLETED', `${updated.employeeName}: ${buildTransitionChangeSummary(updated)}`);
+    } else if (isReactivation) {
+      const reactivated = buildReactivatedUser(updated);
+      if (reactivated) saveUser(reactivated);
+      updated = withTimelineEvent(updated, 'User Reactivated', 'completed');
+      logWorkflowEvent('REACTIVATION_COMPLETED', `${updated.employeeName} reactivated - Department: ${updated.departmentName}`);
     } else if (isOffboarding) {
       const deactivated = buildDeactivatedUser(updated);
       if (deactivated) saveUser(deactivated);
@@ -294,6 +341,7 @@ function RequestDetails() {
 
   const isOffboarding = request.type === 'Offboarding';
   const isTransition = request.type === 'Transition';
+  const isReactivation = request.type === 'Reactivation';
   const relatedRequests = getAllRequests().filter(
     (r) => r.id !== request.id && r.email.toLowerCase() === request.email.toLowerCase()
   );
@@ -318,7 +366,13 @@ function RequestDetails() {
         </button>
         <span className="flex items-center gap-2">
           <span className="rounded bg-[#0d1b30] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#d4a574]">
-            {isTransition ? 'Transition Request' : isOffboarding ? 'Offboarding Request' : 'Onboarding Request'}
+            {isTransition
+              ? 'Transition Request'
+              : isReactivation
+                ? 'Reactivation Request'
+                : isOffboarding
+                  ? 'Offboarding Request'
+                  : 'Onboarding Request'}
           </span>
           {!isAdmin && (
             <span className="rounded bg-[#d4a574]/20 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#d4a574]">
@@ -332,7 +386,8 @@ function RequestDetails() {
         <div className={`mb-6 rounded-lg border px-4 py-2 text-sm font-semibold ${slaBannerClass}`}>
           {getSLAStatusText(sla)}
           <span className="ml-2 font-normal text-gray-400">
-            (SLA: {sla.slaLimitMs / 3600000}h {isTransition ? 'transition' : isOffboarding ? 'offboarding' : 'onboarding'})
+            (SLA: {sla.slaLimitMs / 3600000}h{' '}
+            {isTransition ? 'transition' : isReactivation ? 'reactivation' : isOffboarding ? 'offboarding' : 'onboarding'})
           </span>
         </div>
       )}
@@ -392,7 +447,7 @@ function RequestDetails() {
             ) : (
               <div>
                 <p className="text-sm text-gray-400">Job Title</p>
-                <p className="font-semibold">{request.jobTitleLabel}</p>
+                <p className="font-semibold">{request.jobTitleLabel || 'N/A'}</p>
               </div>
             )}
           </div>
@@ -487,7 +542,13 @@ function RequestDetails() {
 
       <div className="bg-[#1a365d] border border-[#d4a574]/30 rounded-lg p-6 mb-6">
         <h2 className="text-xl font-bold text-white mb-4">
-          {isTransition ? 'Platforms to Update' : isOffboarding ? 'Platforms' : 'Platform Provisioning'}
+          {isTransition
+            ? 'Platforms to Update'
+            : isOffboarding
+              ? 'Platforms'
+              : isReactivation
+                ? 'Platform Re-provisioning'
+                : 'Platform Provisioning'}
         </h2>
         {!isAdmin && (
           <div className="mb-4 rounded border-l-4 border-l-[#d4a574] bg-[#d4a574]/10 p-3 text-sm text-[#d4a574]">
@@ -604,13 +665,22 @@ function RequestDetails() {
             title={!allPlatformsCompleted ? 'Complete all platform provisioning first' : ''}
             className="w-full bg-[#d4a574] text-[#1a365d] font-bold py-3 rounded-lg hover:bg-[#c4956a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            ✓ {isTransition ? 'Complete Transition Request' : isOffboarding ? 'Complete Request' : 'Complete Onboarding Request'}
+            ✓{' '}
+            {isTransition
+              ? 'Complete Transition Request'
+              : isReactivation
+                ? 'Complete Reactivation Request'
+                : isOffboarding
+                  ? 'Complete Request'
+                  : 'Complete Onboarding Request'}
           </button>
           <p className="mt-2 text-center text-sm text-gray-400">
             {allPlatformsCompleted
               ? isTransition
                 ? 'All platform access updated. Ready to complete the transition.'
-                : `All platforms ${isOffboarding ? 'offboarded' : 'provisioned'}. Ready to complete the request.`
+                : isReactivation
+                  ? 'All platforms re-provisioned. Ready to complete the reactivation.'
+                  : `All platforms ${isOffboarding ? 'offboarded' : 'provisioned'}. Ready to complete the request.`
               : `Complete all ${request.platforms.filter((p) => p.status !== 'completed').length} remaining platform(s) before completing the request.`}
           </p>
         </>
@@ -620,9 +690,70 @@ function RequestDetails() {
         <div className="bg-green-900 text-green-300 p-4 rounded-lg">
           {isTransition
             ? '✅ Transition completed. Employee details have been updated.'
-            : isOffboarding
-              ? '✅ All platforms disabled. User is now inactive.'
-              : '✅ All platforms provisioned. User is now active.'}
+            : isReactivation
+              ? '✅ All platforms re-provisioned. User is now active again.'
+              : isOffboarding
+                ? '✅ All platforms disabled. User is now inactive.'
+                : '✅ All platforms provisioned. User is now active.'}
+        </div>
+      )}
+
+      {/* Azure AD work-email confirmation (duplicate name or reactivation) */}
+      {azureEmailModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => setAzureEmailModal(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-xl border border-yellow-500/40 bg-[#1a365d] p-6 shadow-2xl"
+          >
+            {request.hasDuplicateName && (
+              <span className="mb-3 inline-block rounded-full bg-yellow-500/15 px-3 py-1 text-xs font-bold text-yellow-400">
+                ⚠️ Duplicate Name Detected
+              </span>
+            )}
+            <h2 className="mb-2 text-lg font-bold text-white">{request.employeeName}</h2>
+            <p className="mb-4 text-sm text-gray-300">
+              {request.hasDuplicateName
+                ? 'An active employee with this name already exists. Confirm or edit the work email before creating the Azure account.'
+                : 'Confirm the work email to use for this reactivation - reuse their previous mailbox, or enter a new one.'}
+            </p>
+            <label htmlFor="azure-email-input" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#d4a574]">
+              Work Email
+            </label>
+            <input
+              id="azure-email-input"
+              type="email"
+              value={azureEmailInput}
+              onChange={(e) => setAzureEmailInput(e.target.value)}
+              placeholder="email@thecreditpros.com"
+              className="w-full rounded-lg border border-[#d4a574]/40 bg-[#0d1b30] px-3 py-2 text-sm text-white focus:border-[#d4a574] focus:outline-none"
+            />
+            <p className="mt-2 text-xs text-gray-400">
+              Demo: saved directly to the user record on confirm. Production: sent to the Azure AD API to
+              create/reactivate the account.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setAzureEmailModal(false)}
+                className="rounded-lg border border-[#d4a574] px-4 py-2 text-sm font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574] hover:text-[#1a365d]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmAzureEmail}
+                disabled={!azureEmailInput.trim()}
+                className="rounded-lg bg-[#d4a574] px-4 py-2 text-sm font-bold text-[#1a365d] transition-colors hover:bg-[#c99a63] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Confirm &amp; Create Azure Account
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

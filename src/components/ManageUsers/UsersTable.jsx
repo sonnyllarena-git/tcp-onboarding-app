@@ -39,20 +39,24 @@ export function getStatusStyle(status) {
  * @param {Array} users - Array of user objects
  * @param {Set<string>} pendingOffboardEmails - Lowercased emails with an offboarding request still pending
  * @param {Set<string>} pendingTransitionEmails - Lowercased emails with a transition request still pending
+ * @param {Set<string>} pendingReactivationEmails - Lowercased emails with a reactivation request still pending
  * @param {Function} onViewDetails - Callback to view a user's details
  * @param {Function} onViewRequest - Callback to view a pending user's platform checklist
  * @param {Function} onSubmitOffboard - Callback to offboard an active user
  * @param {Function} onTransition - Callback to open TransitionForm for an active user
+ * @param {Function} onReactivate - Callback to open ReactivationForm for an inactive user
  * @returns {React.ReactElement} UsersTable component
  */
 function UsersTable({
   users,
   pendingOffboardEmails,
   pendingTransitionEmails,
+  pendingReactivationEmails,
   onViewDetails,
   onViewRequest,
   onSubmitOffboard,
   onTransition,
+  onReactivate,
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-[#d4a574]/30 shadow-lg">
@@ -92,6 +96,8 @@ function UsersTable({
                 user.status === 'active' && pendingOffboardEmails?.has(user.email.toLowerCase());
               const hasPendingTransition =
                 user.status === 'active' && pendingTransitionEmails?.has(user.email.toLowerCase());
+              const hasPendingReactivation =
+                user.status === 'inactive' && pendingReactivationEmails?.has(user.email.toLowerCase());
               const displayStatus = isPendingOffboard ? 'pendingOffboard' : user.status;
 
               return (
@@ -104,6 +110,11 @@ function UsersTable({
                     {hasPendingTransition && (
                       <div className="mt-1 inline-block rounded-full bg-[#ed8936]/20 px-2 py-0.5 text-[10px] font-bold text-[#ed8936]">
                         ⏳ Pending Transition
+                      </div>
+                    )}
+                    {hasPendingReactivation && (
+                      <div className="mt-1 inline-block rounded-full bg-[#ed8936]/20 px-2 py-0.5 text-[10px] font-bold text-[#ed8936]">
+                        🔁 Pending Reactivation
                       </div>
                     )}
                   </td>
@@ -132,10 +143,12 @@ function UsersTable({
                       user={user}
                       isPendingOffboard={isPendingOffboard}
                       hasPendingTransition={hasPendingTransition}
+                      hasPendingReactivation={hasPendingReactivation}
                       onViewDetails={onViewDetails}
                       onViewRequest={onViewRequest}
                       onSubmitOffboard={onSubmitOffboard}
                       onTransition={onTransition}
+                      onReactivate={onReactivate}
                     />
                   </td>
                 </tr>
@@ -162,10 +175,12 @@ UsersTable.propTypes = {
   ).isRequired,
   pendingOffboardEmails: PropTypes.instanceOf(Set),
   pendingTransitionEmails: PropTypes.instanceOf(Set),
+  pendingReactivationEmails: PropTypes.instanceOf(Set),
   onViewDetails: PropTypes.func.isRequired,
   onViewRequest: PropTypes.func.isRequired,
   onSubmitOffboard: PropTypes.func.isRequired,
   onTransition: PropTypes.func.isRequired,
+  onReactivate: PropTypes.func.isRequired,
 };
 
 export default UsersTable;

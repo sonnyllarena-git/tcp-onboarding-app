@@ -677,6 +677,7 @@ export function createOnboardingRequest(formData) {
     azureGroupId: formData.azureGroupId,
     azureGroupName: formData.azureGroupName,
     azureGroupKey: formData.azureGroupKey,
+    hasDuplicateName: Boolean(formData.hasDuplicateName),
     createdAt: new Date().toISOString(),
     submittedBy: formData.submittedBy,
     submittedByRole: formData.submittedByRole,
@@ -815,6 +816,90 @@ export function buildTransitionedUser(request) {
     type: request.newType || existing.type,
     lastTransitionDate: new Date().toISOString(),
     transitionCount: (existing.transitionCount || 0) + 1,
+  };
+}
+
+/**
+ * Builds a new reactivation request for a rehired INACTIVE employee.
+ * Reuses the same request shape/pipeline as onboarding/offboarding/
+ * transition (id/type/status/platforms/timeline) so it slots into
+ * getAllRequests()/RequestsList/RequestDetails unchanged, and reuses the
+ * onboarding-style automated platform-provisioning flow (this employee
+ * is having their access re-provisioned, same as a fresh hire) rather
+ * than transition's manual-only flow.
+ *
+ * Department/Manager are the only required fields in the form - Floor/
+ * Role/Job Title/Type are optional, same reasoning as transitions: no
+ * inactive seed user has ever had those fields set, so requiring them
+ * would block every reactivation on data that was never there.
+ *
+ * @param {Object} user - The inactive user being reactivated (from getAllUsers())
+ * @param {Object} formData - { department, manager, floor, role, jobTitle, type, selectedPlatforms }
+ * @param {Object} submitter - { submittedBy, submittedByRole, submittedByDept }
+ * @returns {Object} The new request (not yet persisted - call saveRequest)
+ */
+export function createReactivationRequest(user, formData, submitter) {
+  const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return {
+    id: getNextRequestId(),
+    type: 'Reactivation',
+    requestType: 'Reactivation',
+    name: user.name,
+    employeeName: user.name,
+    email: user.email,
+    status: 'pending',
+    date: today,
+    startDate: today,
+    userId: user.id,
+    department: formData.department,
+    departmentName: formData.department,
+    manager: formData.manager,
+    managerName: formData.manager,
+    floor: formData.floor || null,
+    role: formData.role || null,
+    jobTitleLabel: formData.jobTitle || null,
+    employeeType: formData.type === 'External' ? 'external' : 'internal',
+    employeeTypeLabel: formData.type || 'Internal',
+    createdAt: new Date().toISOString(),
+    submittedBy: submitter.submittedBy,
+    submittedByRole: submitter.submittedByRole,
+    submittedByDept: submitter.submittedByDept,
+    platforms: (formData.selectedPlatforms || []).map((name) => ({
+      name,
+      status: 'pending',
+      completedBy: null,
+      completedAt: null,
+      error: null,
+    })),
+    timeline: [],
+  };
+}
+
+/**
+ * Builds the updated user record once a reactivation request is fully
+ * provisioned - flips the existing inactive user back to active with
+ * whatever details were reviewed/updated during the request. A blank
+ * optional field (floor/role/jobTitle/type) leaves that attribute as-is.
+ * @param {Object} request - A reactivation request whose platforms are all completed
+ * @returns {Object|null} The user record to persist via saveUser, or null if no matching user exists
+ */
+export function buildReactivatedUser(request) {
+  const existing = getAllUsers().find((u) => u.id === request.userId);
+  if (!existing) {
+    return null;
+  }
+  return {
+    ...existing,
+    status: 'active',
+    department: request.departmentName,
+    manager: request.managerName,
+    floor: request.floor || existing.floor,
+    role: request.role || existing.role,
+    jobTitle: request.jobTitleLabel || existing.jobTitle,
+    type: request.employeeType === 'external' ? 'External' : 'Internal',
+    dateOnboarded: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    dateOffboarded: null,
+    platforms: request.platforms.map((p) => p.name),
   };
 }
 
@@ -971,6 +1056,7 @@ export const SLA_CONFIG_MS = {
   Onboarding: 24 * 60 * 60 * 1000,
   Offboarding: 2 * 60 * 60 * 1000,
   Transition: 24 * 60 * 60 * 1000,
+  Reactivation: 24 * 60 * 60 * 1000,
 };
 
 /**
@@ -1062,6 +1148,34 @@ export function getSLAStatusText(sla) {
 export function generateWorkEmail(fullName) {
   const firstName = (fullName || '').trim().split(/\s+/)[0]?.toLowerCase() || 'user';
   return `${firstName}@thecreditpros.com`;
+}
+
+/**
+ * True when an ACTIVE user already has this exact name (case-insensitive,
+ * whitespace-trimmed). Used to warn an admin onboarding a new employee
+ * that the name collides with someone already on staff - purely
+ * informational, never blocks submission.
+ * @param {string} fullName
+ * @returns {boolean}
+ */
+export function checkDuplicateActiveUser(fullName) {
+  const normalized = (fullName || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return getAllUsers().some((u) => u.status === 'active' && u.name.trim().toLowerCase() === normalized);
+}
+
+/**
+ * Suggests a more specific work email (firstname.lastname@) for the
+ * duplicate-name case, since generateWorkEmail's firstname-only format
+ * would collide with the existing active user of the same name.
+ * @param {string} fullName
+ * @returns {string}
+ */
+export function generateDuplicateWorkEmail(fullName) {
+  const parts = (fullName || '').trim().toLowerCase().split(/\s+/);
+  const first = parts[0] || 'user';
+  const last = parts.slice(1).join('') || 'employee';
+  return `${first}.${last}@thecreditpros.com`;
 }
 
 /**
@@ -1238,17 +1352,21 @@ const mockData = {
   createOnboardingRequest,
   createOffboardingRequest,
   createTransitionRequest,
+  createReactivationRequest,
   withTimelineEvent,
   buildPendingUser,
   buildActivatedUser,
   buildDeactivatedUser,
   buildTransitionedUser,
+  buildReactivatedUser,
   buildTransitionChangeSummary,
   SLA_CONFIG_MS,
   formatDurationHoursMinutes,
   calculateRequestSLA,
   getSLAStatusText,
   generateWorkEmail,
+  checkDuplicateActiveUser,
+  generateDuplicateWorkEmail,
   getRequestWorkEmail,
   getMonthRange,
   getLast12MonthRanges,

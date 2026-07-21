@@ -11,9 +11,21 @@ import PropTypes from 'prop-types';
  * @param {Function} onSubmitOffboard - Offboard user (navigate to OffboardingForm)
  * @param {Function} onTransition - Open TransitionForm for this user
  * @param {boolean} hasPendingTransition - True when this active user already has a transition request awaiting completion
+ * @param {Function} onReactivate - Open ReactivationForm for this inactive user
+ * @param {boolean} hasPendingReactivation - True when this inactive user already has a reactivation request awaiting completion
  * @returns {Array<{label: string, onClick: Function}>} Menu items for this user
  */
-function getMenuItems(user, isPendingOffboard, onViewDetails, onViewRequest, onSubmitOffboard, onTransition, hasPendingTransition) {
+function getMenuItems(
+  user,
+  isPendingOffboard,
+  onViewDetails,
+  onViewRequest,
+  onSubmitOffboard,
+  onTransition,
+  hasPendingTransition,
+  onReactivate,
+  hasPendingReactivation
+) {
   if (user.status === 'pending') {
     return [
       { label: 'View Request', onClick: () => onViewRequest(user.id) },
@@ -44,7 +56,13 @@ function getMenuItems(user, isPendingOffboard, onViewDetails, onViewRequest, onS
   }
 
   // inactive
-  return [{ label: 'View Details', onClick: () => onViewDetails(user) }];
+  const items = [{ label: 'View Details', onClick: () => onViewDetails(user) }];
+  if (hasPendingReactivation) {
+    items.push({ label: 'View Reactivation Request', onClick: () => onViewRequest(user.id) });
+  } else {
+    items.push({ label: '🔁 Reactivation Request', onClick: () => onReactivate(user) });
+  }
+  return items;
 }
 
 /**
@@ -62,9 +80,21 @@ function getMenuItems(user, isPendingOffboard, onViewDetails, onViewRequest, onS
  * @param {Function} onSubmitOffboard - Navigate to OffboardingForm with user ID
  * @param {Function} onTransition - Open TransitionForm for this user
  * @param {boolean} hasPendingTransition - True when this active user already has a transition request awaiting completion
+ * @param {Function} onReactivate - Open ReactivationForm for this inactive user
+ * @param {boolean} hasPendingReactivation - True when this inactive user already has a reactivation request awaiting completion
  * @returns {React.ReactElement} Action menu
  */
-function UserActionMenu({ user, isPendingOffboard, onViewDetails, onViewRequest, onSubmitOffboard, onTransition, hasPendingTransition }) {
+function UserActionMenu({
+  user,
+  isPendingOffboard,
+  onViewDetails,
+  onViewRequest,
+  onSubmitOffboard,
+  onTransition,
+  hasPendingTransition,
+  onReactivate,
+  hasPendingReactivation,
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -90,7 +120,17 @@ function UserActionMenu({ user, isPendingOffboard, onViewDetails, onViewRequest,
     };
   }, [isOpen]);
 
-  const menuItems = getMenuItems(user, isPendingOffboard, onViewDetails, onViewRequest, onSubmitOffboard, onTransition, hasPendingTransition);
+  const menuItems = getMenuItems(
+    user,
+    isPendingOffboard,
+    onViewDetails,
+    onViewRequest,
+    onSubmitOffboard,
+    onTransition,
+    hasPendingTransition,
+    onReactivate,
+    hasPendingReactivation
+  );
 
   const handleItemClick = (onClick) => {
     setIsOpen(false);
@@ -145,6 +185,8 @@ UserActionMenu.propTypes = {
   onSubmitOffboard: PropTypes.func.isRequired,
   onTransition: PropTypes.func.isRequired,
   hasPendingTransition: PropTypes.bool,
+  onReactivate: PropTypes.func.isRequired,
+  hasPendingReactivation: PropTypes.bool,
 };
 
 export default UserActionMenu;

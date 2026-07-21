@@ -124,6 +124,7 @@ function RequestsList() {
             <option value="Onboarding">Onboarding</option>
             <option value="Offboarding">Offboarding</option>
             <option value="Transition">Transition</option>
+            <option value="Reactivation">Reactivation</option>
           </select>
         </div>
 

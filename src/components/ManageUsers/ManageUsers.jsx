@@ -4,6 +4,7 @@ import UsersFilters from './UsersFilters';
 import UsersTable from './UsersTable';
 import UserDetailsModal from './UserDetailsModal';
 import TransitionForm from '../TransitionForm/TransitionForm';
+import ReactivationForm from '../ReactivationForm/ReactivationForm';
 import { getAllUsers, getAllRequests, getPendingRequestByEmail } from '../../mockData';
 
 const ITEMS_PER_PAGE = 10;
@@ -114,12 +115,22 @@ function ManageUsers() {
       ),
     [version]
   );
+  const pendingReactivationEmails = useMemo(
+    () =>
+      new Set(
+        getAllRequests()
+          .filter((r) => r.type === 'Reactivation' && r.status === 'pending')
+          .map((r) => r.email.toLowerCase())
+      ),
+    [version]
+  );
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [transitionUser, setTransitionUser] = useState(null);
+  const [reactivationUser, setReactivationUser] = useState(null);
 
   const filteredUsers = useMemo(
     () => sortUsers(filterUsers(users, searchTerm, statusFilter)),
@@ -200,6 +211,21 @@ function ManageUsers() {
     setVersion((v) => v + 1);
   };
 
+  const handleOpenReactivation = (user) => {
+    setReactivationUser(user);
+  };
+
+  const handleCloseReactivation = () => {
+    setReactivationUser(null);
+  };
+
+  /** Same reasoning as handleTransitionSuccess: refresh the derived
+   * pendingReactivationEmails set only - do NOT close the form here, or
+   * ReactivationForm's own success modal never gets a chance to render. */
+  const handleReactivationSuccess = () => {
+    setVersion((v) => v + 1);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">
       <header className="mb-6">
@@ -222,10 +248,12 @@ function ManageUsers() {
         users={paginatedUsers}
         pendingOffboardEmails={pendingOffboardEmails}
         pendingTransitionEmails={pendingTransitionEmails}
+        pendingReactivationEmails={pendingReactivationEmails}
         onViewDetails={handleViewDetails}
         onViewRequest={handleViewRequest}
         onSubmitOffboard={handleSubmitOffboard}
         onTransition={handleOpenTransition}
+        onReactivate={handleOpenReactivation}
       />
 
       <UserDetailsModal
@@ -237,6 +265,14 @@ function ManageUsers() {
 
       {transitionUser && (
         <TransitionForm user={transitionUser} onClose={handleCloseTransition} onSuccess={handleTransitionSuccess} />
+      )}
+
+      {reactivationUser && (
+        <ReactivationForm
+          user={reactivationUser}
+          onClose={handleCloseReactivation}
+          onSuccess={handleReactivationSuccess}
+        />
       )}
 
       <nav

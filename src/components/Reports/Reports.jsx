@@ -262,15 +262,17 @@ export function buildDepartmentBreakdownReport(requests) {
   requests.forEach((request) => {
     const dept = request.departmentName || 'Unknown';
     if (!departments[dept]) {
-      departments[dept] = { total: 0, onboarding: 0, offboarding: 0, transition: 0, completed: 0, pending: 0 };
+      departments[dept] = { total: 0, onboarding: 0, offboarding: 0, transition: 0, reactivation: 0, completed: 0, pending: 0 };
     }
     departments[dept].total += 1;
     if (request.type === 'Onboarding') {
       departments[dept].onboarding += 1;
     } else if (request.type === 'Offboarding') {
       departments[dept].offboarding += 1;
-    } else {
+    } else if (request.type === 'Transition') {
       departments[dept].transition += 1;
+    } else {
+      departments[dept].reactivation += 1;
     }
     if (request.status === 'completed') {
       departments[dept].completed += 1;
@@ -471,6 +473,7 @@ function Reports() {
   const onboarding = useMemo(() => buildPerformanceReport(requests, 'Onboarding'), [requests]);
   const offboarding = useMemo(() => buildPerformanceReport(requests, 'Offboarding'), [requests]);
   const transition = useMemo(() => buildPerformanceReport(requests, 'Transition'), [requests]);
+  const reactivation = useMemo(() => buildPerformanceReport(requests, 'Reactivation'), [requests]);
   const departmentMovements = useMemo(() => {
     const counts = {};
     requests
@@ -541,10 +544,11 @@ function Reports() {
     requests.forEach((r) => {
       if (!r.createdAt) return;
       const day = new Date(r.createdAt).toLocaleDateString();
-      if (!byDay[day]) byDay[day] = { onboarding: 0, offboarding: 0, transition: 0 };
+      if (!byDay[day]) byDay[day] = { onboarding: 0, offboarding: 0, transition: 0, reactivation: 0 };
       if (r.type === 'Onboarding') byDay[day].onboarding += 1;
       else if (r.type === 'Offboarding') byDay[day].offboarding += 1;
-      else byDay[day].transition += 1;
+      else if (r.type === 'Transition') byDay[day].transition += 1;
+      else byDay[day].reactivation += 1;
     });
     return byDay;
   }, [requests]);
@@ -784,6 +788,7 @@ function Reports() {
                 { label: 'Onboarding', value: onboarding.totalRequests, color: '#4299e1' },
                 { label: 'Offboarding', value: offboarding.totalRequests, color: '#d4a574' },
                 { label: 'Transition', value: transition.totalRequests, color: '#9f7aea' },
+                { label: 'Reactivation', value: reactivation.totalRequests, color: '#38b2ac' },
               ]}
             />
             <DonutChart
@@ -865,8 +870,8 @@ function Reports() {
             <MetricTile label="Days With Activity" value={Object.keys(volumeByDay).length} />
           </div>
           <SimpleTable
-            columns={['Date', 'Onboarding', 'Offboarding', 'Transition']}
-            rows={Object.entries(volumeByDay).map(([day, v]) => [day, v.onboarding, v.offboarding, v.transition])}
+            columns={['Date', 'Onboarding', 'Offboarding', 'Transition', 'Reactivation']}
+            rows={Object.entries(volumeByDay).map(([day, v]) => [day, v.onboarding, v.offboarding, v.transition, v.reactivation])}
           />
         </div>
       )}
@@ -965,13 +970,14 @@ function Reports() {
         <div className="rounded-lg border border-[#d4a574]/30 bg-[#1a365d] p-6">
           <h2 className="mb-4 text-xl font-bold text-white">Department Breakdown</h2>
           <SimpleTable
-            columns={['Department', 'Total', 'Onboarding', 'Offboarding', 'Transition', 'Completed', 'Pending']}
+            columns={['Department', 'Total', 'Onboarding', 'Offboarding', 'Transition', 'Reactivation', 'Completed', 'Pending']}
             rows={Object.entries(departmentBreakdown).map(([dept, s]) => [
               dept,
               s.total,
               s.onboarding,
               s.offboarding,
               s.transition,
+              s.reactivation,
               s.completed,
               s.pending,
             ])}

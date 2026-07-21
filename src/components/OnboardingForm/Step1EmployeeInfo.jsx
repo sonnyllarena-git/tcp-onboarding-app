@@ -1,4 +1,4 @@
-import { MOCK_DEPARTMENT_GROUPS, MOCK_JOB_TITLES, ROLE_OPTIONS, FLOOR_OPTIONS, getAllUsers } from '../../mockData';
+import { MOCK_DEPARTMENT_GROUPS, MOCK_JOB_TITLES, ROLE_OPTIONS, FLOOR_OPTIONS, getAllUsers, checkDuplicateActiveUser } from '../../mockData';
 
 export function validateStep1(formData) {
   return formData.employeeName && formData.email && formData.startDate &&
@@ -9,6 +9,7 @@ export function validateStep1(formData) {
 
 function Step1EmployeeInfo({ formData, onDataChange, onNext, onCancel }) {
   const managers = getAllUsers().filter(u => u.status === 'active');
+  const isDuplicate = checkDuplicateActiveUser(formData.employeeName);
 
   return (
     <div className="space-y-4">
@@ -16,9 +17,21 @@ function Step1EmployeeInfo({ formData, onDataChange, onNext, onCancel }) {
         type="text"
         placeholder="Employee Name"
         value={formData.employeeName}
-        onChange={(e) => onDataChange({ employeeName: e.target.value })}
+        onChange={(e) => onDataChange({ employeeName: e.target.value, hasDuplicateName: checkDuplicateActiveUser(e.target.value) })}
         className="w-full p-2 rounded bg-[#0d1b30] text-white border border-[#d4a574]/30"
       />
+      {isDuplicate && (
+        <div className="flex items-start gap-3 rounded border-l-4 border-yellow-500 bg-yellow-500/10 p-3">
+          <span aria-hidden="true">⚠️</span>
+          <div>
+            <p className="text-sm font-semibold text-yellow-400">Duplicate name detected</p>
+            <p className="text-xs text-yellow-300">
+              An active employee with this name already exists. You can still submit - reach out to IT afterward so
+              the new account gets a distinguishable work email.
+            </p>
+          </div>
+        </div>
+      )}
       <input
         type="email"
         placeholder="Email"
