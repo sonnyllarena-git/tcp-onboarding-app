@@ -38,12 +38,22 @@ export function getStatusStyle(status) {
  * @component
  * @param {Array} users - Array of user objects
  * @param {Set<string>} pendingOffboardEmails - Lowercased emails with an offboarding request still pending
+ * @param {Set<string>} pendingTransitionEmails - Lowercased emails with a transition request still pending
  * @param {Function} onViewDetails - Callback to view a user's details
  * @param {Function} onViewRequest - Callback to view a pending user's platform checklist
  * @param {Function} onSubmitOffboard - Callback to offboard an active user
+ * @param {Function} onTransition - Callback to open TransitionForm for an active user
  * @returns {React.ReactElement} UsersTable component
  */
-function UsersTable({ users, pendingOffboardEmails, onViewDetails, onViewRequest, onSubmitOffboard }) {
+function UsersTable({
+  users,
+  pendingOffboardEmails,
+  pendingTransitionEmails,
+  onViewDetails,
+  onViewRequest,
+  onSubmitOffboard,
+  onTransition,
+}) {
   return (
     <div className="overflow-x-auto rounded-xl border border-[#d4a574]/30 shadow-lg">
       <table className="w-full min-w-[900px] table-fixed border-collapse bg-[#1a365d]">
@@ -80,6 +90,8 @@ function UsersTable({ users, pendingOffboardEmails, onViewDetails, onViewRequest
             users.map((user) => {
               const isPendingOffboard =
                 user.status === 'active' && pendingOffboardEmails?.has(user.email.toLowerCase());
+              const hasPendingTransition =
+                user.status === 'active' && pendingTransitionEmails?.has(user.email.toLowerCase());
               const displayStatus = isPendingOffboard ? 'pendingOffboard' : user.status;
 
               return (
@@ -87,7 +99,14 @@ function UsersTable({ users, pendingOffboardEmails, onViewDetails, onViewRequest
                   key={user.id}
                   className="border-b border-[#d4a574]/10 transition-colors hover:bg-white/5"
                 >
-                  <td className="px-4 py-3 text-sm font-medium text-white">{user.name}</td>
+                  <td className="px-4 py-3 text-sm font-medium text-white">
+                    {user.name}
+                    {hasPendingTransition && (
+                      <div className="mt-1 inline-block rounded-full bg-[#ed8936]/20 px-2 py-0.5 text-[10px] font-bold text-[#ed8936]">
+                        ⏳ Pending Transition
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-xs">
                     {user.workEmail ? (
                       <span className="inline-block rounded border border-[#48bb78]/40 bg-[#48bb78]/10 px-2 py-0.5 font-semibold text-[#48bb78]">
@@ -112,9 +131,11 @@ function UsersTable({ users, pendingOffboardEmails, onViewDetails, onViewRequest
                     <UserActionMenu
                       user={user}
                       isPendingOffboard={isPendingOffboard}
+                      hasPendingTransition={hasPendingTransition}
                       onViewDetails={onViewDetails}
                       onViewRequest={onViewRequest}
                       onSubmitOffboard={onSubmitOffboard}
+                      onTransition={onTransition}
                     />
                   </td>
                 </tr>
@@ -140,9 +161,11 @@ UsersTable.propTypes = {
     })
   ).isRequired,
   pendingOffboardEmails: PropTypes.instanceOf(Set),
+  pendingTransitionEmails: PropTypes.instanceOf(Set),
   onViewDetails: PropTypes.func.isRequired,
   onViewRequest: PropTypes.func.isRequired,
   onSubmitOffboard: PropTypes.func.isRequired,
+  onTransition: PropTypes.func.isRequired,
 };
 
 export default UsersTable;

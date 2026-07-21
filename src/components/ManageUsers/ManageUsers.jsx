@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import UsersFilters from './UsersFilters';
 import UsersTable from './UsersTable';
 import UserDetailsModal from './UserDetailsModal';
+import TransitionForm from '../TransitionForm/TransitionForm';
 import { getAllUsers, getAllRequests, getPendingRequestByEmail } from '../../mockData';
 
 const ITEMS_PER_PAGE = 10;
@@ -94,19 +95,31 @@ export function getRequestIdByEmail(email) {
 function ManageUsers() {
   const navigate = useNavigate();
   const [users] = useState(getAllUsers);
-  const [pendingOffboardEmails] = useState(
+  const [version, setVersion] = useState(0);
+  const pendingOffboardEmails = useMemo(
     () =>
       new Set(
         getAllRequests()
           .filter((r) => r.type === 'Offboarding' && r.status === 'pending')
           .map((r) => r.email.toLowerCase())
-      )
+      ),
+    [version]
+  );
+  const pendingTransitionEmails = useMemo(
+    () =>
+      new Set(
+        getAllRequests()
+          .filter((r) => r.type === 'Transition' && r.status === 'pending')
+          .map((r) => r.email.toLowerCase())
+      ),
+    [version]
   );
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [transitionUser, setTransitionUser] = useState(null);
 
   const filteredUsers = useMemo(
     () => sortUsers(filterUsers(users, searchTerm, statusFilter)),
@@ -167,6 +180,22 @@ function ManageUsers() {
     navigate(`/requests/${requestId}`, { state: { fromManageUsers: true } });
   };
 
+  const handleOpenTransition = (user) => {
+    setTransitionUser(user);
+  };
+
+  const handleCloseTransition = () => {
+    setTransitionUser(null);
+  };
+
+  /** A submitted transition doesn't change the user list itself (it only
+   * takes effect once completed from RequestDetails) - bumping `version`
+   * just re-derives pendingTransitionEmails so the badge shows immediately. */
+  const handleTransitionSuccess = () => {
+    setTransitionUser(null);
+    setVersion((v) => v + 1);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a365d] to-[#0d1b30] dark:from-[#0a0f1e] dark:to-[#0a0f1e] px-4 py-6 sm:px-6 lg:px-8">
       <header className="mb-6">
@@ -188,9 +217,11 @@ function ManageUsers() {
       <UsersTable
         users={paginatedUsers}
         pendingOffboardEmails={pendingOffboardEmails}
+        pendingTransitionEmails={pendingTransitionEmails}
         onViewDetails={handleViewDetails}
         onViewRequest={handleViewRequest}
         onSubmitOffboard={handleSubmitOffboard}
+        onTransition={handleOpenTransition}
       />
 
       <UserDetailsModal
@@ -199,6 +230,10 @@ function ManageUsers() {
         onClose={handleCloseModal}
         onViewRequest={handleViewRequestById}
       />
+
+      {transitionUser && (
+        <TransitionForm user={transitionUser} onClose={handleCloseTransition} onSuccess={handleTransitionSuccess} />
+      )}
 
       <nav
         aria-label="Pagination"

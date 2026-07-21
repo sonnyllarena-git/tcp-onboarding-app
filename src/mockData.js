@@ -390,6 +390,27 @@ export const AVAILABLE_PLATFORMS = [
 ];
 
 /**
+ * Option lists for TransitionForm's "new" fields. Department and manager
+ * options reuse names that already exist in the seed data (real
+ * departments/managers this app already knows about) rather than
+ * inventing a disconnected fictional roster; Floor/Role/Type have no
+ * existing app concept to reconcile against, so they're new lists.
+ */
+export const DEPARTMENT_OPTIONS = ['IT', 'Sales', 'Marketing', 'Finance', 'HR', 'Operations', 'Customer Support'];
+
+export const MANAGER_OPTIONS = [
+  'Diana Foster', 'James Whitfield', 'Rachel Nguyen', 'Marcus Bell', 'Sandra Okafor', 'Kevin Tran',
+  'Robert Chen', 'Priya Patel', 'David Kim', 'Laura Chen', 'Nina Rodriguez', 'Steve Park',
+  'Angela Cruz', 'Patricia Nguyen', 'Victor Adeyemi', 'Helen Osei',
+];
+
+export const FLOOR_OPTIONS = ['C1', 'C2', 'S1', 'S2', 'T1', 'T2'];
+
+export const ROLE_OPTIONS = ['Engineer', 'Senior Engineer', 'Lead Engineer', 'Manager', 'Director', 'Analyst', 'Administrator'];
+
+export const TYPE_OPTIONS = ['Internal', 'External'];
+
+/**
  * DEFAULT_SETTINGS - Initial settings values for all users.
  * Persisted to localStorage key: 'tcp_settings' (see Settings/Settings.jsx's useSettings hook).
  */
@@ -695,6 +716,82 @@ export function createOffboardingRequest(formData) {
 }
 
 /**
+ * Builds a new transition request for an active user moving to a new
+ * department/manager/floor/role/job title/type. Reuses the same request
+ * shape as onboarding/offboarding (id/type/status/platforms/timeline) so
+ * it slots into the existing getAllRequests()/RequestsList/RequestDetails
+ * pipeline unchanged - the transition-specific old/new field pairs ride
+ * alongside it. There is no platform provisioning step (platform access
+ * changes are handled manually), so `platforms` is always empty.
+ *
+ * @param {Object} user - The active user being transitioned (from getAllUsers())
+ * @param {Object} formData - { newDepartment, newManager, newFloor, newRole, newJobTitle, newType }
+ * @param {Object} submitter - { submittedBy, submittedByRole, submittedByDept }
+ * @returns {Object} The new request (not yet persisted - call saveRequest)
+ */
+export function createTransitionRequest(user, formData, submitter) {
+  const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return {
+    id: getNextRequestId(),
+    type: 'Transition',
+    requestType: 'Transition',
+    name: user.name,
+    employeeName: user.name,
+    email: user.email,
+    status: 'pending',
+    date: today,
+    startDate: today,
+    department: formData.newDepartment,
+    departmentName: formData.newDepartment,
+    manager: formData.newManager,
+    managerName: formData.newManager,
+    userId: user.id,
+    oldDepartment: user.department || null,
+    newDepartment: formData.newDepartment,
+    oldManager: user.manager || null,
+    newManager: formData.newManager,
+    oldFloor: user.floor || null,
+    newFloor: formData.newFloor,
+    oldRole: user.role || null,
+    newRole: formData.newRole,
+    oldJobTitle: user.jobTitle || null,
+    newJobTitle: formData.newJobTitle,
+    oldType: user.type || 'Internal',
+    newType: formData.newType,
+    createdAt: new Date().toISOString(),
+    submittedBy: submitter.submittedBy,
+    submittedByRole: submitter.submittedByRole,
+    submittedByDept: submitter.submittedByDept,
+    platforms: [],
+    timeline: [],
+  };
+}
+
+/**
+ * Builds the updated user record once a transition request is completed:
+ * applies every new* field and bumps the transition counter/timestamp.
+ * @param {Object} request - A transition request whose fields to apply
+ * @returns {Object|null} The user record to persist via saveUser, or null if no matching user exists
+ */
+export function buildTransitionedUser(request) {
+  const existing = getAllUsers().find((u) => u.id === request.userId);
+  if (!existing) {
+    return null;
+  }
+  return {
+    ...existing,
+    department: request.newDepartment,
+    manager: request.newManager,
+    floor: request.newFloor,
+    role: request.newRole,
+    jobTitle: request.newJobTitle,
+    type: request.newType,
+    lastTransitionDate: new Date().toISOString(),
+    transitionCount: (existing.transitionCount || 0) + 1,
+  };
+}
+
+/**
  * Appends a timeline event to a request's timeline. Returns a NEW request
  * object rather than mutating the input, so React state updates built from
  * this stay clean (no accidental in-place mutation of state).
@@ -816,6 +913,7 @@ export function buildDeactivatedUser(request) {
 export const SLA_CONFIG_MS = {
   Onboarding: 24 * 60 * 60 * 1000,
   Offboarding: 2 * 60 * 60 * 1000,
+  Transition: 24 * 60 * 60 * 1000,
 };
 
 /**
@@ -1052,6 +1150,11 @@ const mockData = {
   DEFAULT_SETTINGS,
   MOCK_JOB_TITLES,
   IT_SUPPORT,
+  DEPARTMENT_OPTIONS,
+  MANAGER_OPTIONS,
+  FLOOR_OPTIONS,
+  ROLE_OPTIONS,
+  TYPE_OPTIONS,
   getMockAccountByEmail,
   getMockUserById,
   getMockUserByEmail,
@@ -1076,10 +1179,12 @@ const mockData = {
   getNextUserId,
   createOnboardingRequest,
   createOffboardingRequest,
+  createTransitionRequest,
   withTimelineEvent,
   buildPendingUser,
   buildActivatedUser,
   buildDeactivatedUser,
+  buildTransitionedUser,
   SLA_CONFIG_MS,
   formatDurationHoursMinutes,
   calculateRequestSLA,

@@ -108,6 +108,7 @@ function RequestsList() {
             <option value="all">All Types</option>
             <option value="Onboarding">Onboarding</option>
             <option value="Offboarding">Offboarding</option>
+            <option value="Transition">Transition</option>
           </select>
         </div>
 
@@ -141,9 +142,15 @@ function RequestsList() {
                 <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[1fr_auto_1fr] md:gap-6">
                   <div>
                     <p className="text-white font-semibold">{req.employeeName}</p>
-                    <p className={`text-sm ${workEmail ? 'text-[#48bb78] font-semibold' : 'text-gray-400'}`}>
-                      {workEmail || 'Work Email not yet created'}
-                    </p>
+                    {req.type === 'Transition' ? (
+                      <p className="text-sm text-gray-400">
+                        {req.oldDepartment} <span className="text-[#48bb78]">→</span> {req.newDepartment}
+                      </p>
+                    ) : (
+                      <p className={`text-sm ${workEmail ? 'text-[#48bb78] font-semibold' : 'text-gray-400'}`}>
+                        {workEmail || 'Work Email not yet created'}
+                      </p>
+                    )}
                   </div>
 
                   <div className="text-left md:text-center">

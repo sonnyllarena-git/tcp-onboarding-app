@@ -7,7 +7,7 @@ function CancelConfirmationModal({ isOpen, onConfirm, onDismiss }) {
         <p className="text-gray-300 mb-6">Are you sure? All progress will be lost.</p>
         <div className="flex gap-2">
           <button onClick={onConfirm} className="bg-red-600 text-white px-4 py-2 rounded">Cancel</button>
-          <button onClick={onDismiss} className="border border-[#d4a574] text-[#d4a574] px-4 py-2 rounded">Go Back</button>
+          <button onClick={onDismiss} className="border border-[#d4a574] text-[#d4a574] px-4 py-2 rounded">Continue Onboarding</button>
         </div>
       </div>
     </div>

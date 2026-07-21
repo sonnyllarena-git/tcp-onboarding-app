@@ -221,12 +221,18 @@ function AuditLogs() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
   const [visibleColumns, setVisibleColumns] = useState(DEFAULT_VISIBLE_COLUMNS);
- 
+
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 500);
     return () => clearTimeout(timer);
   }, []);
- 
+
+  // Derived from every log actually present (seed + runtime), not just the
+  // seed - otherwise action types only ever recorded at runtime (e.g. the
+  // Azure/welcome-email/transition workflow actions) would show up in the
+  // table but never be selectable in this filter.
+  const actionTypeOptions = useMemo(() => [...new Set(logs.map((log) => log.action))].sort(), [logs]);
+
   const filteredLogs = useMemo(
     () => sortLogsByNewest(filterAuditLogs(logs, { searchTerm, ...filters })),
     [logs, searchTerm, filters]
@@ -283,7 +289,7 @@ function AuditLogs() {
         filters={filters}
         onFiltersChange={handleFiltersChange}
         onReset={handleReset}
-        actionTypeOptions={ACTION_TYPE_OPTIONS}
+        actionTypeOptions={actionTypeOptions}
       />
 
       <div className="mb-4 rounded-lg border border-[#d4a574]/20 bg-white/5 p-3">

@@ -7,6 +7,7 @@ import {
   saveUser,
   buildActivatedUser,
   buildDeactivatedUser,
+  buildTransitionedUser,
   withTimelineEvent,
   calculateRequestSLA,
   getSLAStatusText,
@@ -238,13 +239,22 @@ function RequestDetails() {
   const handleCompleteRequest = () => {
     if (!isAdmin || !request || !request.platforms.every((p) => p.status === 'completed')) return;
     const isOffboarding = request.type === 'Offboarding';
+    const isTransition = request.type === 'Transition';
 
     let updated = { ...request, status: 'completed' };
     updated.approvedBy = loggedInUser?.name || 'Unknown';
     updated.approvedByRole = loggedInUser?.role || 'Unknown';
     updated.completedAt = new Date().toISOString();
 
-    if (isOffboarding) {
+    if (isTransition) {
+      const transitioned = buildTransitionedUser(updated);
+      if (transitioned) saveUser(transitioned);
+      updated = withTimelineEvent(updated, 'Transition Completed', 'completed');
+      logWorkflowEvent(
+        'TRANSITION_COMPLETED',
+        `${updated.employeeName}: Department ${updated.oldDepartment} → ${updated.newDepartment}, Manager ${updated.oldManager || 'N/A'} → ${updated.newManager}, Role ${updated.oldRole || 'N/A'} → ${updated.newRole}, Job Title ${updated.oldJobTitle || 'N/A'} → ${updated.newJobTitle}, Floor ${updated.oldFloor || 'N/A'} → ${updated.newFloor}, Type ${updated.oldType} → ${updated.newType}`
+      );
+    } else if (isOffboarding) {
       const deactivated = buildDeactivatedUser(updated);
       if (deactivated) saveUser(deactivated);
       updated = withTimelineEvent(updated, 'User Offboarded', 'completed');
@@ -276,6 +286,7 @@ function RequestDetails() {
   if (!request) return <NotFoundPage />;
 
   const isOffboarding = request.type === 'Offboarding';
+  const isTransition = request.type === 'Transition';
   const relatedRequests = getAllRequests().filter(
     (r) => r.id !== request.id && r.email.toLowerCase() === request.email.toLowerCase()
   );
@@ -300,7 +311,7 @@ function RequestDetails() {
         </button>
         <span className="flex items-center gap-2">
           <span className="rounded bg-[#0d1b30] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#d4a574]">
-            {isOffboarding ? 'Offboarding Request' : 'Onboarding Request'}
+            {isTransition ? 'Transition Request' : isOffboarding ? 'Offboarding Request' : 'Onboarding Request'}
           </span>
           {!isAdmin && (
             <span className="rounded bg-[#d4a574]/20 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#d4a574]">
@@ -314,7 +325,7 @@ function RequestDetails() {
         <div className={`mb-6 rounded-lg border px-4 py-2 text-sm font-semibold ${slaBannerClass}`}>
           {getSLAStatusText(sla)}
           <span className="ml-2 font-normal text-gray-400">
-            (SLA: {sla.slaLimitMs / 3600000}h {isOffboarding ? 'offboarding' : 'onboarding'})
+            (SLA: {sla.slaLimitMs / 3600000}h {isTransition ? 'transition' : isOffboarding ? 'offboarding' : 'onboarding'})
           </span>
         </div>
       )}
@@ -331,48 +342,82 @@ function RequestDetails() {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 text-gray-300">
-          <div>
+        {isTransition ? (
+          <div className="text-gray-300">
             <p className="text-sm text-gray-400">Email</p>
             <p className="font-semibold">{request.email}</p>
           </div>
-          <div>
-            <p className="text-sm text-gray-400">Work Email</p>
-            <p className={`font-semibold ${getRequestWorkEmail(request) ? 'text-[#48bb78]' : ''}`}>
-              {getRequestWorkEmail(request) || 'Not created yet'}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-400">Department</p>
-            <p className="font-semibold">{request.departmentName}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-400">Manager</p>
-            <p className="font-semibold">{request.managerName}</p>
-          </div>
-          {isOffboarding ? (
-            <>
-              <div>
-                <p className="text-sm text-gray-400">Timing</p>
-                <p className="font-semibold capitalize">{request.timing || 'immediate'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-400">Offboarding Reason</p>
-                <p className="font-semibold">{request.offboardingReason}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-400">Final Day</p>
-                <p className="font-semibold">{request.finalDay || 'N/A'}</p>
-              </div>
-            </>
-          ) : (
+        ) : (
+          <div className="grid grid-cols-2 gap-4 text-gray-300">
             <div>
-              <p className="text-sm text-gray-400">Job Title</p>
-              <p className="font-semibold">{request.jobTitleLabel}</p>
+              <p className="text-sm text-gray-400">Email</p>
+              <p className="font-semibold">{request.email}</p>
             </div>
-          )}
-        </div>
+            <div>
+              <p className="text-sm text-gray-400">Work Email</p>
+              <p className={`font-semibold ${getRequestWorkEmail(request) ? 'text-[#48bb78]' : ''}`}>
+                {getRequestWorkEmail(request) || 'Not created yet'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-400">Department</p>
+              <p className="font-semibold">{request.departmentName}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-400">Manager</p>
+              <p className="font-semibold">{request.managerName}</p>
+            </div>
+            {isOffboarding ? (
+              <>
+                <div>
+                  <p className="text-sm text-gray-400">Timing</p>
+                  <p className="font-semibold capitalize">{request.timing || 'immediate'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Offboarding Reason</p>
+                  <p className="font-semibold">{request.offboardingReason}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Final Day</p>
+                  <p className="font-semibold">{request.finalDay || 'N/A'}</p>
+                </div>
+              </>
+            ) : (
+              <div>
+                <p className="text-sm text-gray-400">Job Title</p>
+                <p className="font-semibold">{request.jobTitleLabel}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {isTransition && (
+        <div className="bg-[#1a365d] border border-[#d4a574]/30 rounded-lg p-6 mb-6">
+          <h2 className="text-xl font-bold text-white mb-4">🔄 Transition Details</h2>
+          <div className="space-y-2">
+            {[
+              ['Department', request.oldDepartment, request.newDepartment],
+              ['Manager', request.oldManager, request.newManager],
+              ['Floor', request.oldFloor, request.newFloor],
+              ['Role / Group', request.oldRole, request.newRole],
+              ['Job Title', request.oldJobTitle, request.newJobTitle],
+              ['Type', request.oldType, request.newType],
+            ].map(([label, before, after]) => (
+              <div key={label} className="flex flex-wrap items-center gap-2 rounded bg-[#0d1b30] p-3 text-sm">
+                <span className="w-28 shrink-0 text-gray-400">{label}</span>
+                <span className="text-blue-300">{before || 'N/A'}</span>
+                <span className="text-[#48bb78]">→</span>
+                <span className="font-semibold text-[#48bb78]">{after}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-xs text-gray-400">
+            ℹ️ Platform access is not updated automatically for transitions - IT will need to update platform access
+            manually after this request is completed.
+          </p>
+        </div>
+      )}
 
       <div className="bg-[#1a365d] border-l-4 border-l-[#d4a574] border border-[#d4a574]/30 rounded-lg p-6 mb-6">
         <h2 className="text-xl font-bold text-white mb-4">📝 Submission Information</h2>
@@ -410,7 +455,7 @@ function RequestDetails() {
         </div>
       )}
 
-      {!isOffboarding && request.status === 'completed' && (
+      {request.type === 'Onboarding' && request.status === 'completed' && (
         <div className="bg-[#1a365d] border-l-4 border-l-blue-400 border border-[#d4a574]/30 rounded-lg p-6 mb-6">
           <h2 className="text-xl font-bold text-white mb-2">📧 Send Welcome Email</h2>
           <p className="mb-4 text-sm text-gray-300">
@@ -433,6 +478,7 @@ function RequestDetails() {
         </div>
       )}
 
+      {!isTransition && (
       <div className="bg-[#1a365d] border border-[#d4a574]/30 rounded-lg p-6 mb-6">
         <h2 className="text-xl font-bold text-white mb-4">{isOffboarding ? 'Platforms' : 'Platform Provisioning'}</h2>
         {!isAdmin && (
@@ -511,6 +557,7 @@ function RequestDetails() {
           })}
         </div>
       </div>
+      )}
 
       <div className="bg-[#1a365d] border border-[#d4a574]/30 rounded-lg p-6 mb-6">
         <h2 className="text-xl font-bold text-white mb-4">Timeline</h2>
@@ -550,19 +597,25 @@ function RequestDetails() {
             title={!allPlatformsCompleted ? 'Complete all platform provisioning first' : ''}
             className="w-full bg-[#d4a574] text-[#1a365d] font-bold py-3 rounded-lg hover:bg-[#c4956a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            ✓ {isOffboarding ? 'Complete Request' : 'Complete Onboarding Request'}
+            ✓ {isTransition ? 'Complete Transition Request' : isOffboarding ? 'Complete Request' : 'Complete Onboarding Request'}
           </button>
           <p className="mt-2 text-center text-sm text-gray-400">
-            {allPlatformsCompleted
-              ? `All platforms ${isOffboarding ? 'offboarded' : 'provisioned'}. Ready to complete the request.`
-              : `Complete all ${request.platforms.filter((p) => p.status !== 'completed').length} remaining platform(s) before completing the request.`}
+            {isTransition
+              ? 'Ready to complete the transition and update this employee’s details.'
+              : allPlatformsCompleted
+                ? `All platforms ${isOffboarding ? 'offboarded' : 'provisioned'}. Ready to complete the request.`
+                : `Complete all ${request.platforms.filter((p) => p.status !== 'completed').length} remaining platform(s) before completing the request.`}
           </p>
         </>
       )}
 
       {request.status === 'completed' && (
         <div className="bg-green-900 text-green-300 p-4 rounded-lg">
-          {isOffboarding ? '✅ All platforms disabled. User is now inactive.' : '✅ All platforms provisioned. User is now active.'}
+          {isTransition
+            ? '✅ Transition completed. Employee details have been updated.'
+            : isOffboarding
+              ? '✅ All platforms disabled. User is now inactive.'
+              : '✅ All platforms provisioned. User is now active.'}
         </div>
       )}
 

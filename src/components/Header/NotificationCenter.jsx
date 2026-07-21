@@ -17,9 +17,9 @@ const ACTION_ICONS = {
 
 const ACTION_LABELS = {
   ONBOARDING_SUBMITTED: 'Onboarding Submitted',
-  ONBOARDING_APPROVED: 'Onboarding Approved',
+  ONBOARDING_APPROVED: 'Onboarding Completed',
   OFFBOARDING_SUBMITTED: 'Offboarding Submitted',
-  OFFBOARDING_APPROVED: 'Offboarding Approved',
+  OFFBOARDING_APPROVED: 'Offboarding Completed',
 };
 
 const RELEVANT_ACTIONS = Object.keys(ACTION_LABELS);

@@ -77,7 +77,7 @@ function Header({ title, userName = null, onLogout }) {
             <img src={tcpLogo} alt="The Credit Pros logo" className="h-7 w-auto sm:h-8" />
           </div>
           <div>
-            <p className="text-xs text-gray-300">TCP Portal</p>
+            <p className="text-xs text-gray-300">TCP Employee Portal</p>
             <h1 className="text-lg font-bold leading-tight text-white">{title}</h1>
           </div>
         </div>
