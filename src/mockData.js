@@ -411,6 +411,22 @@ export const ROLE_OPTIONS = ['Engineer', 'Senior Engineer', 'Lead Engineer', 'Ma
 export const TYPE_OPTIONS = ['Internal', 'External'];
 
 /**
+ * Simulated Azure AD security-group name for each role, shown to the
+ * admin as an informational note when transitioning a user - real
+ * integration would call the Azure API to actually move group
+ * membership instead of just recording the intent in the audit log.
+ */
+export const AZURE_GROUP_MAPPING = {
+  Engineer: 'AzureGroup_Engineer',
+  'Senior Engineer': 'AzureGroup_SeniorEngineer',
+  'Lead Engineer': 'AzureGroup_LeadEngineer',
+  Manager: 'AzureGroup_Manager',
+  Director: 'AzureGroup_Director',
+  Analyst: 'AzureGroup_Analyst',
+  Administrator: 'AzureGroup_Administrator',
+};
+
+/**
  * DEFAULT_SETTINGS - Initial settings values for all users.
  * Persisted to localStorage key: 'tcp_settings' (see Settings/Settings.jsx's useSettings hook).
  */
@@ -758,11 +774,18 @@ export function createTransitionRequest(user, formData, submitter) {
     newJobTitle: formData.newJobTitle,
     oldType: user.type || 'Internal',
     newType: formData.newType,
+    azureGroupName: AZURE_GROUP_MAPPING[formData.newRole] || null,
     createdAt: new Date().toISOString(),
     submittedBy: submitter.submittedBy,
     submittedByRole: submitter.submittedByRole,
     submittedByDept: submitter.submittedByDept,
-    platforms: [],
+    platforms: (formData.selectedPlatforms || []).map((name) => ({
+      name,
+      status: 'pending',
+      completedBy: null,
+      completedAt: null,
+      error: null,
+    })),
     timeline: [],
   };
 }
@@ -782,10 +805,12 @@ export function buildTransitionedUser(request) {
     ...existing,
     department: request.newDepartment,
     manager: request.newManager,
-    floor: request.newFloor,
-    role: request.newRole,
-    jobTitle: request.newJobTitle,
-    type: request.newType,
+    // Floor/Role/Job Title/Type are optional on the request - a blank
+    // value means "leave unchanged", not "clear it out".
+    floor: request.newFloor || existing.floor,
+    role: request.newRole || existing.role,
+    jobTitle: request.newJobTitle || existing.jobTitle,
+    type: request.newType || existing.type,
     lastTransitionDate: new Date().toISOString(),
     transitionCount: (existing.transitionCount || 0) + 1,
   };
@@ -1155,6 +1180,7 @@ const mockData = {
   FLOOR_OPTIONS,
   ROLE_OPTIONS,
   TYPE_OPTIONS,
+  AZURE_GROUP_MAPPING,
   getMockAccountByEmail,
   getMockUserById,
   getMockUserByEmail,

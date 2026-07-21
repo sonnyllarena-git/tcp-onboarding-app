@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 const ACTIONS = [
   { key: 'New Onboarding', icon: '➕' },
   { key: 'View Requests', icon: '📋' },
-  { key: 'Users List', icon: '👥', adminOnly: true },
+  { key: 'Users List', icon: '👥' },
   { key: 'Generate Report', icon: '📊' },
   { key: 'Audit Logs', icon: '🛡️', adminOnly: true },
 ];

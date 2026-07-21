@@ -87,7 +87,7 @@ function RequestDetails() {
     });
   };
 
-  // ---- Offboarding: manual-only per platform ----
+  // ---- Offboarding & Transition: manual-only per platform ----
 
   const handleOffboardPlatformClick = (platformName) => {
     if (!isAdmin || !request || request.status !== 'pending') return;
@@ -99,6 +99,7 @@ function RequestDetails() {
   const confirmManualOffboarding = () => {
     if (!request || !offboardPlatformToConfirm) return;
     const platformName = offboardPlatformToConfirm;
+    const isTransitionRequest = request.type === 'Transition';
     let updated = {
       ...request,
       platforms: request.platforms.map((p) =>
@@ -107,10 +108,18 @@ function RequestDetails() {
           : p
       ),
     };
-    updated = withTimelineEvent(updated, `Platform manually offboarded: ${platformName}`, 'completed');
+    updated = withTimelineEvent(
+      updated,
+      isTransitionRequest ? `Platform access updated: ${platformName}` : `Platform manually offboarded: ${platformName}`,
+      'completed'
+    );
     saveRequest(updated);
     setRequest(updated);
-    logWorkflowEvent('PLATFORM_OFFBOARDED_MANUAL', `${platformName} manually offboarded for ${updated.employeeName}`, { platformName });
+    logWorkflowEvent(
+      isTransitionRequest ? 'TRANSITION_PLATFORM_UPDATED' : 'PLATFORM_OFFBOARDED_MANUAL',
+      `${platformName} ${isTransitionRequest ? 'access updated' : 'manually offboarded'} for ${updated.employeeName}`,
+      { platformName }
+    );
     setOffboardPlatformToConfirm(null);
   };
 
@@ -408,7 +417,7 @@ function RequestDetails() {
                 <span className="w-28 shrink-0 text-gray-400">{label}</span>
                 <span className="text-blue-300">{before || 'N/A'}</span>
                 <span className="text-[#48bb78]">→</span>
-                <span className="font-semibold text-[#48bb78]">{after}</span>
+                <span className="font-semibold text-[#48bb78]">{after || 'No change'}</span>
               </div>
             ))}
           </div>
@@ -478,9 +487,10 @@ function RequestDetails() {
         </div>
       )}
 
-      {!isTransition && (
       <div className="bg-[#1a365d] border border-[#d4a574]/30 rounded-lg p-6 mb-6">
-        <h2 className="text-xl font-bold text-white mb-4">{isOffboarding ? 'Platforms' : 'Platform Provisioning'}</h2>
+        <h2 className="text-xl font-bold text-white mb-4">
+          {isTransition ? 'Platforms to Update' : isOffboarding ? 'Platforms' : 'Platform Provisioning'}
+        </h2>
         {!isAdmin && (
           <div className="mb-4 rounded border-l-4 border-l-[#d4a574] bg-[#d4a574]/10 p-3 text-sm text-[#d4a574]">
             🔒 Platform management restricted to IT administrators
@@ -519,7 +529,7 @@ function RequestDetails() {
                   <p className="mt-1 text-xs text-purple-300">🎫 Jira ticket {p.jiraTicketId} created</p>
                 )}
 
-                {isOffboarding && isPending && (
+                {(isOffboarding || isTransition) && isPending && (
                   <button
                     type="button"
                     onClick={() => handleOffboardPlatformClick(p.name)}
@@ -527,17 +537,17 @@ function RequestDetails() {
                     title={!isAdmin ? 'Only IT admins can manage platforms' : ''}
                     className="mt-2 w-full rounded-lg border border-[#d4a574]/40 bg-transparent px-3 py-1.5 text-xs font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574]/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
                   >
-                    Click to Offboard Manually
+                    {isTransition ? 'Click to Confirm Access Update' : 'Click to Offboard Manually'}
                   </button>
                 )}
 
-                {!isOffboarding && isPending && automatingPlatform === p.name && (
+                {!isOffboarding && !isTransition && isPending && automatingPlatform === p.name && (
                   <div className="mt-2 flex items-center gap-2 text-xs font-bold text-blue-300">
                     <span className="h-3 w-3 animate-spin rounded-full border-2 border-blue-300 border-t-transparent" />
                     Triggering automation...
                   </div>
                 )}
-                {!isOffboarding && isPending && automatingPlatform !== p.name && (
+                {!isOffboarding && !isTransition && isPending && automatingPlatform !== p.name && (
                   <button
                     type="button"
                     onClick={() => handleOnboardPlatformClick(p)}
@@ -557,7 +567,6 @@ function RequestDetails() {
           })}
         </div>
       </div>
-      )}
 
       <div className="bg-[#1a365d] border border-[#d4a574]/30 rounded-lg p-6 mb-6">
         <h2 className="text-xl font-bold text-white mb-4">Timeline</h2>
@@ -600,11 +609,11 @@ function RequestDetails() {
             ✓ {isTransition ? 'Complete Transition Request' : isOffboarding ? 'Complete Request' : 'Complete Onboarding Request'}
           </button>
           <p className="mt-2 text-center text-sm text-gray-400">
-            {isTransition
-              ? 'Ready to complete the transition and update this employee’s details.'
-              : allPlatformsCompleted
-                ? `All platforms ${isOffboarding ? 'offboarded' : 'provisioned'}. Ready to complete the request.`
-                : `Complete all ${request.platforms.filter((p) => p.status !== 'completed').length} remaining platform(s) before completing the request.`}
+            {allPlatformsCompleted
+              ? isTransition
+                ? 'All platform access updated. Ready to complete the transition.'
+                : `All platforms ${isOffboarding ? 'offboarded' : 'provisioned'}. Ready to complete the request.`
+              : `Complete all ${request.platforms.filter((p) => p.status !== 'completed').length} remaining platform(s) before completing the request.`}
           </p>
         </>
       )}
@@ -631,10 +640,21 @@ function RequestDetails() {
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-xl border border-[#d4a574]/30 bg-[#1a365d] p-6 shadow-2xl"
           >
-            <h2 className="mb-3 text-lg font-bold text-white">Confirm Manual Offboarding</h2>
+            <h2 className="mb-3 text-lg font-bold text-white">
+              {isTransition ? 'Confirm Platform Access Update' : 'Confirm Manual Offboarding'}
+            </h2>
             <p className="mb-6 text-sm text-gray-300">
-              Are you sure you want to manually offboard <strong>{request.employeeName}</strong> from{' '}
-              <strong>{offboardPlatformToConfirm}</strong>?
+              {isTransition ? (
+                <>
+                  Confirm that <strong>{offboardPlatformToConfirm}</strong> access has been updated for{' '}
+                  <strong>{request.employeeName}</strong>?
+                </>
+              ) : (
+                <>
+                  Are you sure you want to manually offboard <strong>{request.employeeName}</strong> from{' '}
+                  <strong>{offboardPlatformToConfirm}</strong>?
+                </>
+              )}
             </p>
             <div className="flex justify-end gap-3">
               <button
