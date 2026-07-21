@@ -9,14 +9,23 @@ const INITIAL_FILTERS = {
   type: 'all',
 };
 
+// Pending/in-progress requests need attention first; completed ones are
+// just a record. Matches this app's real lowercase status values -
+// there's no 'cancelled' status anywhere in this app, unlike the
+// uppercase PENDING/COMPLETED/CANCELLED a fictional data model might use.
+const STATUS_SORT_ORDER = { pending: 0, 'in-progress': 1, completed: 2 };
+
 /**
  * Filters and sorts requests for display: text search on name/email
  * (matches either the request's email or its Azure AD work email, once
- * created), exact match on status/type, newest-created first.
+ * created), exact match on status/type, then a default sort - pending
+ * first, then in-progress, then completed, newest-created first within
+ * each group. Requests missing createdAt sort to the bottom of their
+ * group rather than throwing off the rest of the order.
  *
  * @param {Array} requests - Requests to filter (already merged seed + runtime)
  * @param {Object} filters - { nameSearch, emailSearch, status, type }
- * @returns {Array} The filtered, newest-first requests
+ * @returns {Array} The filtered, status-then-newest-first requests
  */
 export function filterRequests(requests, filters) {
   const nameSearch = filters.nameSearch.trim().toLowerCase();
@@ -35,7 +44,13 @@ export function filterRequests(requests, filters) {
       return matchesName && matchesEmail && matchesStatus && matchesType;
     })
     .slice()
-    .sort((a, b) => b.id - a.id);
+    .sort((a, b) => {
+      const statusDiff = (STATUS_SORT_ORDER[a.status] ?? 99) - (STATUS_SORT_ORDER[b.status] ?? 99);
+      if (statusDiff !== 0) return statusDiff;
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
 }
 
 function RequestsList() {
