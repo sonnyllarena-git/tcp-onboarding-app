@@ -221,6 +221,7 @@ function AuditLogs() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
   const [visibleColumns, setVisibleColumns] = useState(DEFAULT_VISIBLE_COLUMNS);
+  const [showPlatformLogs, setShowPlatformLogs] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 500);
@@ -233,10 +234,16 @@ function AuditLogs() {
   // table but never be selectable in this filter.
   const actionTypeOptions = useMemo(() => [...new Set(logs.map((log) => log.action))].sort(), [logs]);
 
-  const filteredLogs = useMemo(
-    () => sortLogsByNewest(filterAuditLogs(logs, { searchTerm, ...filters })),
-    [logs, searchTerm, filters]
-  );
+  const filteredLogs = useMemo(() => {
+    const filtered = filterAuditLogs(logs, { searchTerm, ...filters });
+    // Per-platform entries (Azure account creation, provisioning,
+    // manual/automated completions, transition platform updates, ...)
+    // are identified by already carrying a platformName - hidden by
+    // default so they don't bury the "big" submission/completion
+    // entries, but never dropped from storage, just from this view.
+    const visible = showPlatformLogs ? filtered : filtered.filter((log) => !log.platformName);
+    return sortLogsByNewest(visible);
+  }, [logs, searchTerm, filters, showPlatformLogs]);
  
   const totalPages = Math.max(1, Math.ceil(filteredLogs.length / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
@@ -313,6 +320,15 @@ function AuditLogs() {
             </label>
           ))}
         </div>
+        <label className="mt-3 flex w-fit items-center gap-2 border-t border-[#d4a574]/10 pt-3 text-sm text-gray-300">
+          <input
+            type="checkbox"
+            checked={showPlatformLogs}
+            onChange={() => setShowPlatformLogs((prev) => !prev)}
+            className="h-4 w-4 accent-[#d4a574]"
+          />
+          Show platform logs
+        </label>
       </div>
 
       {isLoading ? (

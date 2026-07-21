@@ -8,6 +8,7 @@ import {
   buildActivatedUser,
   buildDeactivatedUser,
   buildTransitionedUser,
+  buildTransitionChangeSummary,
   withTimelineEvent,
   calculateRequestSLA,
   getSLAStatusText,
@@ -259,10 +260,7 @@ function RequestDetails() {
       const transitioned = buildTransitionedUser(updated);
       if (transitioned) saveUser(transitioned);
       updated = withTimelineEvent(updated, 'Transition Completed', 'completed');
-      logWorkflowEvent(
-        'TRANSITION_COMPLETED',
-        `${updated.employeeName}: Department ${updated.oldDepartment} → ${updated.newDepartment}, Manager ${updated.oldManager || 'N/A'} → ${updated.newManager}, Role ${updated.oldRole || 'N/A'} → ${updated.newRole}, Job Title ${updated.oldJobTitle || 'N/A'} → ${updated.newJobTitle}, Floor ${updated.oldFloor || 'N/A'} → ${updated.newFloor}, Type ${updated.oldType} → ${updated.newType}`
-      );
+      logWorkflowEvent('TRANSITION_COMPLETED', `${updated.employeeName}: ${buildTransitionChangeSummary(updated)}`);
     } else if (isOffboarding) {
       const deactivated = buildDeactivatedUser(updated);
       if (deactivated) saveUser(deactivated);

@@ -1,8 +1,9 @@
-import { MOCK_DEPARTMENT_GROUPS, MOCK_JOB_TITLES, getAllUsers } from '../../mockData';
+import { MOCK_DEPARTMENT_GROUPS, MOCK_JOB_TITLES, ROLE_OPTIONS, FLOOR_OPTIONS, getAllUsers } from '../../mockData';
 
 export function validateStep1(formData) {
   return formData.employeeName && formData.email && formData.startDate &&
          formData.departmentId && formData.managerId && formData.jobTitleId &&
+         formData.role && formData.floor &&
          formData.employeeType && formData.azureGroupId;
 }
 
@@ -76,6 +77,29 @@ function Step1EmployeeInfo({ formData, onDataChange, onNext, onCancel }) {
           <option key={j.id} value={j.id}>{j.label}</option>
         ))}
       </select>
+      <select
+        value={formData.role}
+        onChange={(e) => onDataChange({ role: e.target.value })}
+        className="w-full p-2 rounded bg-[#0d1b30] text-white border border-[#d4a574]/30"
+      >
+        <option value="">Select Role / Group</option>
+        {ROLE_OPTIONS.map(opt => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </select>
+      <select
+        value={formData.floor}
+        onChange={(e) => onDataChange({ floor: e.target.value })}
+        className="w-full p-2 rounded bg-[#0d1b30] text-white border border-[#d4a574]/30"
+      >
+        <option value="">Select Floor</option>
+        {FLOOR_OPTIONS.map(opt => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </select>
+      <p className="text-xs italic text-gray-400">
+        Role/Group and Floor are mock data only — production will pull these from Azure AD.
+      </p>
       <select
         value={formData.employeeType}
         onChange={(e) => {

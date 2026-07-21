@@ -27,6 +27,8 @@ const INITIAL_FORM_DATA = {
   managerName: '',
   jobTitleId: '',
   jobTitleLabel: '',
+  role: '',
+  floor: '',
   employeeType: '',
   employeeTypeLabel: '',
   azureGroupId: '',

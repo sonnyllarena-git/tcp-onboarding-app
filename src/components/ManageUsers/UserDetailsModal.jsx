@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { getPendingRequestByEmail } from '../../mockData';
+import EmployeeHistoryModal from './EmployeeHistoryModal';
 
 const STATUS_INDICATORS = {
   active: { emoji: '🟢', label: 'Active' },
@@ -51,10 +52,12 @@ function formatDate(date) {
  */
 function UserDetailsModal({ isOpen, user, onClose, onViewRequest }) {
   const [visible, setVisible] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
       setVisible(false);
+      setShowHistory(false);
       return undefined;
     }
     const frame = requestAnimationFrame(() => setVisible(true));
@@ -79,6 +82,7 @@ function UserDetailsModal({ isOpen, user, onClose, onViewRequest }) {
   const pendingRequest = getPendingRequestByEmail(user.email);
 
   return (
+    <>
     <div
       className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4 py-8 transition-opacity duration-200 ${
         visible ? 'opacity-100' : 'opacity-0'
@@ -187,6 +191,22 @@ function UserDetailsModal({ isOpen, user, onClose, onViewRequest }) {
                 <dd className="font-medium text-white">{user.manager || 'No manager'}</dd>
               </div>
               <div className="flex items-center justify-between gap-4">
+                <dt className="text-gray-400">Job Title</dt>
+                <dd className="font-medium text-white">{user.jobTitle || '—'}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-gray-400">Role / Group</dt>
+                <dd className="font-medium text-white">{user.role || '—'}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-gray-400">Floor</dt>
+                <dd className="font-medium text-white">{user.floor || '—'}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-gray-400">Type</dt>
+                <dd className="font-medium text-white">{user.type || '—'}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
                 <dt className="text-gray-400">Date Onboarded</dt>
                 <dd className="font-medium text-white">{formatDate(user.dateOnboarded)}</dd>
               </div>
@@ -224,6 +244,13 @@ function UserDetailsModal({ isOpen, user, onClose, onViewRequest }) {
         </div>
 
         <div className="border-t border-[#d4a574]/20 px-6 py-4">
+          <button
+            type="button"
+            onClick={() => setShowHistory(true)}
+            className="mb-3 w-full rounded-lg border border-[#d4a574]/30 bg-white/5 px-4 py-2 text-left text-sm font-medium text-[#d4a574] transition-colors hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d4a574]"
+          >
+            📋 View Employee History
+          </button>
           <div className="flex justify-end">
             <button
               type="button"
@@ -236,6 +263,9 @@ function UserDetailsModal({ isOpen, user, onClose, onViewRequest }) {
         </div>
       </div>
     </div>
+
+    {showHistory && <EmployeeHistoryModal user={user} onClose={() => setShowHistory(false)} />}
+    </>
   );
 }
 

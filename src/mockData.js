@@ -670,6 +670,8 @@ export function createOnboardingRequest(formData) {
     manager: formData.managerName,
     managerName: formData.managerName,
     jobTitleLabel: formData.jobTitleLabel,
+    role: formData.role,
+    floor: formData.floor,
     employeeType: formData.employeeType,
     employeeTypeLabel: formData.employeeTypeLabel,
     azureGroupId: formData.azureGroupId,
@@ -817,6 +819,28 @@ export function buildTransitionedUser(request) {
 }
 
 /**
+ * Builds a "Field: old → new" summary of only the fields a transition
+ * request actually changed - used for both the completion audit log
+ * entry and the Employee History modal, so the two never drift apart.
+ * @param {Object} request - A transition request (old/new field pairs)
+ * @returns {string} Comma-joined list of changes, or a fallback message if none
+ */
+export function buildTransitionChangeSummary(request) {
+  const fields = [
+    ['Department', request.oldDepartment, request.newDepartment],
+    ['Manager', request.oldManager, request.newManager],
+    ['Role', request.oldRole, request.newRole],
+    ['Floor', request.oldFloor, request.newFloor],
+    ['Job Title', request.oldJobTitle, request.newJobTitle],
+    ['Type', request.oldType, request.newType],
+  ];
+  const changes = fields
+    .filter(([, before, after]) => after && before !== after)
+    .map(([label, before, after]) => `${label}: ${before || 'N/A'} → ${after}`);
+  return changes.length > 0 ? changes.join(', ') : 'No field changes recorded.';
+}
+
+/**
  * Appends a timeline event to a request's timeline. Returns a NEW request
  * object rather than mutating the input, so React state updates built from
  * this stay clean (no accidental in-place mutation of state).
@@ -859,6 +883,10 @@ export function buildPendingUser(request) {
     status: 'pending',
     department: request.departmentName,
     manager: request.managerName,
+    jobTitle: request.jobTitleLabel || null,
+    role: request.role || null,
+    floor: request.floor || null,
+    type: request.employeeType === 'external' ? 'External' : 'Internal',
     dateOnboarded: new Date().toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -888,6 +916,10 @@ export function buildActivatedUser(request) {
     status: 'active',
     department: request.departmentName,
     manager: request.managerName,
+    jobTitle: request.jobTitleLabel || existing?.jobTitle || null,
+    role: request.role || existing?.role || null,
+    floor: request.floor || existing?.floor || null,
+    type: request.employeeType ? (request.employeeType === 'external' ? 'External' : 'Internal') : existing?.type || 'Internal',
     dateOnboarded: new Date().toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -1211,6 +1243,7 @@ const mockData = {
   buildActivatedUser,
   buildDeactivatedUser,
   buildTransitionedUser,
+  buildTransitionChangeSummary,
   SLA_CONFIG_MS,
   formatDurationHoursMinutes,
   calculateRequestSLA,

@@ -7,6 +7,8 @@ function Step3Review({ formData, onSubmit, onBack, onCancel, submitting }) {
         <p><strong>Department:</strong> {formData.departmentName}</p>
         <p><strong>Manager:</strong> {formData.managerName}</p>
         <p><strong>Job Title:</strong> {formData.jobTitleLabel}</p>
+        <p><strong>Role / Group:</strong> {formData.role}</p>
+        <p><strong>Floor:</strong> {formData.floor}</p>
         <p><strong>Employee Type:</strong> {formData.employeeTypeLabel}</p>
         <p><strong>Platforms:</strong> {formData.selectedPlatforms.join(', ')}</p>
       </div>
