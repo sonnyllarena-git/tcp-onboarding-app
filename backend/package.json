@@ -1,0 +1,26 @@
+{
+  "name": "tcp-onboarding-backend",
+  "version": "1.0.0",
+  "description": "TCP Employee Onboarding Portal - Express backend with Azure AD / Microsoft Graph integration",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^2.9.2",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "isomorphic-fetch": "^3.0.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
