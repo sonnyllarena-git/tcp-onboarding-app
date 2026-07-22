@@ -12,7 +12,7 @@ import {
   compareMetrics,
 } from '../../mockData';
 import { getAllAuditLogs } from '../AuditLogs';
-import { getAllUsers as getAllUsersReal } from '../../services/userService';
+import { getManagedUsers as getAllUsersReal } from '../../services/userService';
 import { listRequests } from '../../services/requestService';
 import { listAuditLogs } from '../../services/auditService';
 

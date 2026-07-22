@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import StatBox from './StatBox';
 import QuickActions from './QuickActions';
 import { getAllRequests } from '../../mockData';
-import { getAllUsers } from '../../services/userService';
+import { getManagedUsers } from '../../services/userService';
 import { listRequests } from '../../services/requestService';
 
 /**
@@ -28,7 +28,7 @@ export function getGreeting(hour = new Date().getHours()) {
  * runtime data, alongside the underlying record lists each card's modal
  * drills into.
  *
- * @param {Array} users - getAllUsers()
+ * @param {Array} users - getManagedUsers()
  * @param {Array} requests - getAllRequests()
  * @returns {Object} { stats: Array, detail: {activeUsers, pendingRequests, completedToday, failedIssues} }
  */
@@ -209,7 +209,7 @@ function Dashboard({ userName = 'User' }) {
     let cancelled = false;
     async function load() {
       try {
-        const [realUsers, realRequests] = await Promise.all([getAllUsers(), listRequests()]);
+        const [realUsers, realRequests] = await Promise.all([getManagedUsers(), listRequests()]);
         if (cancelled) return;
         setUsers(realUsers);
         setRequests([...realRequests, ...getAllRequests()]);

@@ -145,21 +145,6 @@ describe('Settings', () => {
     expect(stored.activePlatforms).not.toContain('plt-4');
   });
 
-  it('updates a Default Platforms selection only after Save', () => {
-    useAuth.mockReturnValue(ADMIN);
-    render(<Settings />);
-    fireEvent.click(screen.getByRole('button', { name: /Default Platforms/ }));
-
-    // IT Staff (grp-1) is open by default and starts with Jira selected.
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Jira' }));
-    expect(localStorage.getItem('tcp_settings')).toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
-
-    const stored = JSON.parse(localStorage.getItem('tcp_settings'));
-    expect(stored.defaultPlatformsByGroup['grp-1']).not.toContain('plt-5');
-  });
-
   it('restores persisted settings on a simulated page reload', () => {
     localStorage.setItem(
       'tcp_settings',

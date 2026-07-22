@@ -128,20 +128,6 @@ export const MOCK_JOB_TITLES = [
 ];
 
 /**
- * MOCK_DEPARTMENT_GROUPS - Simulates Azure AD role/groups.
- * Production: these map to actual Azure AD security groups.
- * Local: mock groups for testing Default Platforms per Department.
- */
-export const MOCK_DEPARTMENT_GROUPS = [
-  { id: 'grp-1', name: 'IT Staff', azureGroup: 'TCP-IT-Staff', color: '#4299e1' },
-  { id: 'grp-2', name: 'HR Staff', azureGroup: 'TCP-HR-Staff', color: '#48bb78' },
-  { id: 'grp-3', name: 'Finance Staff', azureGroup: 'TCP-Finance-Staff', color: '#ed8936' },
-  { id: 'grp-4', name: 'Operations Staff', azureGroup: 'TCP-Operations-Staff', color: '#9f7aea' },
-  { id: 'grp-5', name: 'Sales Staff', azureGroup: 'TCP-Sales-Staff', color: '#f56565' },
-  { id: 'grp-6', name: 'Customer Support Staff', azureGroup: 'TCP-CustomerSupport-Staff', color: '#38b2ac' },
-];
-
-/**
  * AVAILABLE_PLATFORMS - Master list of all platforms the app can manage.
  * Admins can toggle platforms on/off via Platform Management settings.
  */
@@ -211,17 +197,6 @@ export const DEFAULT_SETTINGS = {
   // Platform Management (ADMIN only)
   // Platform IDs that are active/enabled in the app
   activePlatforms: ['plt-1', 'plt-2', 'plt-3', 'plt-4', 'plt-5', 'plt-6', 'plt-7', 'plt-8', 'plt-9', 'plt-10'],
-
-  // Default Platforms Per Department Group (ADMIN only)
-  // Maps group ID -> array of platform IDs pre-checked on OnboardingForm
-  defaultPlatformsByGroup: {
-    'grp-1': ['plt-1', 'plt-2', 'plt-3', 'plt-4', 'plt-5'], // IT Staff
-    'grp-2': ['plt-1', 'plt-2', 'plt-6'], // HR Staff
-    'grp-3': ['plt-1', 'plt-2', 'plt-5'], // Finance Staff
-    'grp-4': ['plt-1', 'plt-2', 'plt-8'], // Operations Staff
-    'grp-5': ['plt-1', 'plt-2', 'plt-9'], // Sales Staff
-    'grp-6': ['plt-1', 'plt-2', 'plt-3', 'plt-6'], // Customer Support
-  },
 };
 
 /**
@@ -801,7 +776,6 @@ const mockData = {
   PLATFORM_ACTIONS,
   PLATFORMS,
   MOCK_ACCOUNTS,
-  MOCK_DEPARTMENT_GROUPS,
   AVAILABLE_PLATFORMS,
   DEFAULT_SETTINGS,
   MOCK_JOB_TITLES,

@@ -15,7 +15,7 @@ import {
   getRequestWorkEmail,
 } from '../../mockData';
 import { getRequest, updateRequestStatus, updatePlatformStatus, isRealRequestId, listRequests } from '../../services/requestService';
-import { getUser, updateUser, enableUser, disableUser } from '../../services/userService';
+import { getUser, updateUser, enableUser, disableUser, provisionAzure } from '../../services/userService';
 import { useAuth } from '../../hooks/useAuth';
 import { recordAuditLog } from '../AuditLogs';
 import { NotFoundPage } from '../ErrorState';
@@ -247,8 +247,10 @@ function RequestDetails() {
       setTimeout(resolve, AUTOMATION_MIN_DELAY_MS + Math.random() * AUTOMATION_MAX_EXTRA_DELAY_MS)
     );
 
-    const failed = Math.random() < AUTOMATION_FAILURE_CHANCE;
-    const errorMessage = `Failed to provision ${platformName} - authentication timeout`;
+    // 'MS Azure' overwrites this below with the REAL outcome instead
+    // of a simulated one - see that branch.
+    let failed = Math.random() < AUTOMATION_FAILURE_CHANCE;
+    let errorMessage = `Failed to provision ${platformName} - authentication timeout`;
     const isAzureAd = platformName === 'Azure AD';
     const workEmail = isAzureAd ? request.confirmedWorkEmail || generateWorkEmail(request.employeeName) : null;
 
@@ -296,11 +298,29 @@ function RequestDetails() {
       } else {
         logWorkflowEvent('PLATFORM_PROVISIONED_AUTOMATED', `${platformName} provisioned automatically for ${updated.employeeName}`, { platformName });
       }
+    } else if (platformName === 'MS Azure') {
+      // Onboarding's "MS Azure" platform is where the REAL Azure AD
+      // account actually gets created - the user was created with
+      // deferAzure at submission time (see OnboardingForm), so this
+      // click is the first real Graph API call for this employee. No
+      // simulated random failure here (that's for the non-integrated
+      // platforms only) - success/failure reflects what Graph actually did.
+      try {
+        await provisionAzure(request.userId);
+        await updatePlatformStatus(request.id, platformName, { status: 'COMPLETED - AUTOMATED' });
+        failed = false;
+      } catch (error) {
+        console.error('[RequestDetails] Azure provisioning failed:', error.message);
+        errorMessage = error.message;
+        await updatePlatformStatus(request.id, platformName, { status: 'FAILED', errorMessage });
+        failed = true;
+      }
+      await loadRequest();
     } else {
-      // Onboarding - real backend. The workEmail was already set when the
-      // real Azure user was created (see userService.createUser) - this
-      // step just confirms the platform as provisioned. The backend
-      // auto-records the audit entry, so no manual logWorkflowEvent here.
+      // Onboarding - real backend, non-Azure platform (not yet
+      // integrated with a real provider - see backend/README.md). The
+      // backend auto-records the audit entry, so no manual
+      // logWorkflowEvent here.
       try {
         if (failed) {
           await updatePlatformStatus(request.id, platformName, { status: 'FAILED', errorMessage });
@@ -372,6 +392,16 @@ function RequestDetails() {
     }
 
     try {
+      if (platformName === 'MS Azure') {
+        // Manual retry after an earlier automated attempt failed -
+        // there's no "manual" Azure path, so this still has to
+        // actually call Graph (unless it was already created).
+        try {
+          await provisionAzure(request.userId);
+        } catch (error) {
+          if (error.status !== 409) throw error; // 409 = already provisioned, fine
+        }
+      }
       await updatePlatformStatus(request.id, platformName, {
         status: 'COMPLETED - BY IT',
         completedBy: loggedInUser?.name || 'Unknown',

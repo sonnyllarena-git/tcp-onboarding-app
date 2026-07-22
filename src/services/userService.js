@@ -61,9 +61,21 @@ export function adaptUser(raw) {
   };
 }
 
-/** GET /api/users - every real Azure AD user, adapted. */
-export async function getAllUsers() {
+/**
+ * GET /api/users - every real Azure AD user in the full tenant
+ * (~1000 people), adapted. Only use this where the FULL directory
+ * genuinely matters (e.g. checking a new hire's email against every
+ * real account) - for anything showing "users this app manages", use
+ * getManagedUsers() instead.
+ */
+export async function getAllAzureUsers() {
   const { users } = await api.get('/api/users');
+  return users.map(adaptUser);
+}
+
+/** GET /api/users/managed - only users onboarded through this app (local DB). */
+export async function getManagedUsers() {
+  const { users } = await api.get('/api/users/managed');
   return users.map(adaptUser);
 }
 
@@ -74,12 +86,16 @@ export async function getUser(id) {
 }
 
 /**
- * POST /api/users/create - creates a REAL Azure AD account plus the
- * local DB record.
+ * POST /api/users/create - creates the local DB record. Pass
+ * `deferAzure: true` to skip the real Azure AD account creation and
+ * create it later via provisionAzure() instead (this is what
+ * OnboardingForm uses - the request is submitted PENDING with no
+ * Azure account yet, and an IT admin's "MS Azure" click in
+ * RequestDetails is what actually calls Azure).
  * @param {Object} fields - firstName, lastName, displayName, email,
  *   workEmail, department, manager, floor, jobTitle, type, role,
- *   team, country, workingLocation, startDate
- * @returns {Promise<{id: string, azureObjectId: string, status: string}>}
+ *   team, country, workingLocation, startDate, deferAzure
+ * @returns {Promise<{id: string, azureObjectId: string|null, status: string}>}
  */
 export async function createUser(fields) {
   return api.post('/api/users/create', {
@@ -98,7 +114,20 @@ export async function createUser(fields) {
     country: fields.country,
     workingLocation: fields.workingLocation,
     startDate: fields.startDate,
+    deferAzure: Boolean(fields.deferAzure),
   });
+}
+
+/**
+ * POST /api/users/:id/provision-azure - creates the REAL Azure AD
+ * account for a user that was created with deferAzure. Called from
+ * RequestDetails when an IT admin clicks the "MS Azure" platform
+ * button.
+ * @param {string} id
+ * @returns {Promise<{id: string, azureObjectId: string}>}
+ */
+export async function provisionAzure(id) {
+  return api.post(`/api/users/${id}/provision-azure`);
 }
 
 /** PATCH /api/users/:id - updates department/manager/floor/jobTitle/type. */

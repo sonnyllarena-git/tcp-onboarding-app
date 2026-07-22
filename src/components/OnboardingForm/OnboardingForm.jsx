@@ -62,12 +62,14 @@ function OnboardingForm() {
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [existingEmails, setExistingEmails] = useState([]);
 
-  // Real Azure directory, fetched once, used only for Step 1's
-  // "Email already exists" on-blur check.
+  // Full real Azure tenant directory (not just app-managed users -
+  // a new hire's email must not collide with ANY real account),
+  // fetched once, used only for Step 1's "Email already exists"
+  // on-blur check.
   useEffect(() => {
     let cancelled = false;
     userService
-      .getAllUsers()
+      .getAllAzureUsers()
       .then((users) => {
         if (!cancelled) {
           setExistingEmails(
@@ -129,12 +131,11 @@ function OnboardingForm() {
       // "work email" field in the Phase 4 spec's Step 1/2).
       const workEmail = `${formData.firstName}`.trim().toLowerCase() + '@thecreditpros.com';
 
-      // Per the Phase 4 spec: only firstName/lastName/displayName/role
-      // are meant for Azure right now (role itself has no Graph
-      // attribute, so it's stored locally only - see
-      // backend/services/graphService.js's comment). Every other
-      // field is still saved to the local database via both calls
-      // below.
+      // The real Azure AD account is NOT created here - only a local
+      // record (deferAzure: true). It stays PENDING with no Azure
+      // account until an IT admin clicks "MS Azure" on RequestDetails
+      // (see userService.provisionAzure), matching every other
+      // platform's manual/automated-trigger flow.
       const createdUser = await userService.createUser({
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -150,6 +151,7 @@ function OnboardingForm() {
         country: formData.country,
         workingLocation: formData.workingLocation,
         startDate: formData.startDate,
+        deferAzure: true,
       });
 
       const createdRequest = await requestService.submitOnboardingRequest({

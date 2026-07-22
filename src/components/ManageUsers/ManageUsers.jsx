@@ -108,7 +108,7 @@ function ManageUsers() {
     setLoadError(null);
     try {
       const [fetchedUsers, pending] = await Promise.all([
-        userService.getAllUsers(),
+        userService.getManagedUsers(),
         requestService.listRequests({ status: 'PENDING' }),
       ]);
       setUsers(fetchedUsers);

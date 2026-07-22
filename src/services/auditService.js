@@ -39,6 +39,7 @@ export function adaptAuditEntry(raw) {
     status: raw.status,
     ipAddress: raw.ipAddress || null,
     platformName: raw.platformName || null,
+    requestId: raw.requestId || null,
   };
 }
 

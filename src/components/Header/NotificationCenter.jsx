@@ -1,45 +1,63 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getAllAuditLogs } from '../AuditLogs';
+import { listAuditLogs } from '../../services/auditService';
 
 const MAX_ACTIVITIES = 20;
 const LAST_READ_STORAGE_KEY = 'tcp_notifications_last_read';
 
-// Only the onboarding/offboarding/transition/reactivation workflow
-// events are shown here - the full audit log (logins, CSV imports,
-// platform clicks, ...) is a much broader admin tool, already available
-// at /audit-logs.
+// Only the onboarding/offboarding/transition/reactivation/platform
+// workflow events are shown here - the full audit log (logins, CSV
+// imports, ...) is a much broader admin tool, already available at
+// /audit-logs. ONBOARDING_SUBMITTED/OFFBOARDING_SUBMITTED and the
+// *_COMPLETED/PLATFORM_STATUS_UPDATED/USER_CREATED entries come from
+// the REAL backend now (see getRecentActivities below) - Transition/
+// Reactivation entries still come from the local store, since those
+// two request types have no backend equivalent (see mockData.js).
 const ACTION_ICONS = {
   ONBOARDING_SUBMITTED: '📝',
-  ONBOARDING_APPROVED: '✅',
+  ONBOARDING_COMPLETED: '✅',
   OFFBOARDING_SUBMITTED: '📋',
-  OFFBOARDING_APPROVED: '✅',
+  OFFBOARDING_COMPLETED: '✅',
   TRANSITION_REQUEST_SUBMITTED: '🔄',
   TRANSITION_COMPLETED: '✅',
   REACTIVATION_REQUEST_SUBMITTED: '🔁',
   REACTIVATION_COMPLETED: '✅',
+  PLATFORM_STATUS_UPDATED: '⚙️',
+  USER_CREATED: '👤',
 };
 
 const ACTION_LABELS = {
   ONBOARDING_SUBMITTED: 'Onboarding Submitted',
-  ONBOARDING_APPROVED: 'Onboarding Completed',
+  ONBOARDING_COMPLETED: 'Onboarding Completed',
   OFFBOARDING_SUBMITTED: 'Offboarding Submitted',
-  OFFBOARDING_APPROVED: 'Offboarding Completed',
+  OFFBOARDING_COMPLETED: 'Offboarding Completed',
   TRANSITION_REQUEST_SUBMITTED: 'Transition Submitted',
   REACTIVATION_REQUEST_SUBMITTED: 'Reactivation Submitted',
   REACTIVATION_COMPLETED: 'Reactivation Completed',
   TRANSITION_COMPLETED: 'Transition Completed',
+  PLATFORM_STATUS_UPDATED: 'Platform Provisioned',
+  USER_CREATED: 'Account Created',
 };
 
 const RELEVANT_ACTIONS = Object.keys(ACTION_LABELS);
 
 /**
- * Loads the most recent onboarding/offboarding workflow events, newest
- * first, capped at MAX_ACTIVITIES.
- * @returns {Array}
+ * Loads the most recent onboarding/offboarding/transition/reactivation
+ * events, newest first, capped at MAX_ACTIVITIES - merges the real
+ * backend audit log (Onboarding/Offboarding/platform/account events)
+ * with the local store (Transition/Reactivation, which have no
+ * backend equivalent).
+ * @returns {Promise<Array>}
  */
-function getRecentActivities() {
-  return getAllAuditLogs()
+async function getRecentActivities() {
+  let realLogs = [];
+  try {
+    realLogs = await listAuditLogs();
+  } catch (error) {
+    console.error('[NotificationCenter] failed to load real audit logs:', error.message);
+  }
+  return [...realLogs, ...getAllAuditLogs()]
     .filter((log) => RELEVANT_ACTIONS.includes(log.action))
     .sort((a, b) => new Date(b.timestampIso) - new Date(a.timestampIso))
     .slice(0, MAX_ACTIVITIES);
@@ -113,8 +131,8 @@ function getTimeAgo(timestampIso) {
  */
 function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
-  const [activities, setActivities] = useState(getRecentActivities);
-  const [unreadCount, setUnreadCount] = useState(() => countUnread(getRecentActivities(), getLastReadTime()));
+  const [activities, setActivities] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const menuRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -123,9 +141,15 @@ function NotificationCenter() {
   // case here (submit/approve is always immediately followed by a
   // navigate() elsewhere in the app) without needing to poll on a timer.
   useEffect(() => {
-    const latest = getRecentActivities();
-    setActivities(latest);
-    setUnreadCount(countUnread(latest, getLastReadTime()));
+    let cancelled = false;
+    getRecentActivities().then((latest) => {
+      if (cancelled) return;
+      setActivities(latest);
+      setUnreadCount(countUnread(latest, getLastReadTime()));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [location.pathname]);
 
   useEffect(() => {

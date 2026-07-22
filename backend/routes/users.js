@@ -1,12 +1,14 @@
 // ============================================================
 // routes/users.js
 //
-// GET   /api/users             - list all Azure AD users
-// POST  /api/users/create      - create Azure AD user + local DB record
-// GET   /api/users/:id         - get one user (local DB record)
-// PATCH /api/users/:id         - update user info in Azure + DB
-// PATCH /api/users/:id/disable - disable user (offboarding)
-// PATCH /api/users/:id/enable  - re-enable user (reactivation)
+// GET   /api/users                  - list every real Azure AD user (full tenant directory)
+// GET   /api/users/managed          - list only users onboarded through THIS app (local DB)
+// POST  /api/users/create           - create a local DB record, optionally deferring Azure creation
+// POST  /api/users/:id/provision-azure - create the REAL Azure AD account for an already-local user
+// GET   /api/users/:id              - get one user (local DB record)
+// PATCH /api/users/:id              - update user info in Azure + DB
+// PATCH /api/users/:id/disable      - disable user (offboarding)
+// PATCH /api/users/:id/enable       - re-enable user (reactivation)
 // ============================================================
 
 const express = require('express');
@@ -22,9 +24,11 @@ function isValidEmail(value) {
   return typeof value === 'string' && EMAIL_REGEX.test(value.trim());
 }
 
-// GET /api/users - proxies straight to Azure AD, since the
-// directory itself (not this app's local DB) is the source of
-// truth for "every user that exists".
+// GET /api/users - proxies straight to Azure AD, since the FULL
+// directory (not this app's local DB) is the source of truth for
+// "every real employee that exists" - used where that distinction
+// matters, e.g. checking a new hire's email against every real
+// account, not just ones this app has touched.
 router.get('/', async (req, res) => {
   try {
     const users = await graphService.listAzureUsers();
@@ -35,10 +39,29 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/users/create - creates the Azure AD account first
-// (the source of truth for auth/identity), then mirrors the
-// result into the local `users` table for fast lookups by the
-// rest of this API without round-tripping to Graph every time.
+// GET /api/users/managed - only users this app has actually
+// onboarded/managed (the local `users` table), not the full ~1000-
+// person tenant directory. This is what ManageUsers/Dashboard/Reports
+// show - registered BEFORE the /:id route below so Express doesn't
+// match "managed" as an :id.
+router.get('/managed', (req, res) => {
+  try {
+    const db = getDb();
+    const users = db.prepare('SELECT * FROM users ORDER BY createdAt DESC').all();
+    res.json({ users });
+  } catch (error) {
+    console.error('[routes/users] GET /managed failed:', error.message);
+    res.status(500).json({ error: 'Failed to list managed users.' });
+  }
+});
+
+// POST /api/users/create - creates the local DB record. By default
+// (deferAzure not set) also creates the REAL Azure AD account
+// immediately, same as before. When deferAzure is true, the local
+// row is created with azureObjectId=null and the real Azure account
+// is created later via POST /:id/provision-azure - this is what lets
+// OnboardingForm submit a request as PENDING without touching Azure
+// AD until an IT admin actually clicks "MS Azure" on RequestDetails.
 router.post('/create', async (req, res) => {
   const {
     firstName,
@@ -56,6 +79,7 @@ router.post('/create', async (req, res) => {
     country,
     workingLocation,
     startDate,
+    deferAzure,
   } = req.body;
 
   const validationErrors = [];
@@ -77,23 +101,25 @@ router.post('/create', async (req, res) => {
 
   const resolvedDisplayName = (displayName && displayName.trim()) || `${firstName} ${lastName}`.trim();
 
-  let azureUser;
-  try {
-    // Only firstName/lastName/displayName/jobTitle/department are real
-    // Graph attributes - "role" (e.g. "IH.SalesAgent") has no Graph
-    // equivalent and is stored locally only. See graphService.createAzureUser's
-    // own comment for why.
-    azureUser = await graphService.createAzureUser({ firstName, lastName, workEmail, department, jobTitle, displayName: resolvedDisplayName });
-  } catch (error) {
-    console.error('[routes/users] Azure user creation failed:', error.message);
-    recordAuditLog({
-      action: 'AZURE_USER_CREATE_FAILED',
-      affectedUser: resolvedDisplayName,
-      details: { department },
-      status: 'FAILED',
-      ipAddress: req.ip,
-    });
-    return res.status(502).json({ error: 'Failed to create user in Azure AD.' });
+  let azureUser = null;
+  if (!deferAzure) {
+    try {
+      // Only firstName/lastName/displayName/jobTitle/department are real
+      // Graph attributes - "role" (e.g. "IH.SalesAgent") has no Graph
+      // equivalent and is stored locally only. See graphService.createAzureUser's
+      // own comment for why.
+      azureUser = await graphService.createAzureUser({ firstName, lastName, workEmail, department, jobTitle, displayName: resolvedDisplayName });
+    } catch (error) {
+      console.error('[routes/users] Azure user creation failed:', error.message);
+      recordAuditLog({
+        action: 'AZURE_USER_CREATE_FAILED',
+        affectedUser: resolvedDisplayName,
+        details: { department },
+        status: 'FAILED',
+        ipAddress: req.ip,
+      });
+      return res.status(502).json({ error: 'Failed to create user in Azure AD.' });
+    }
   }
 
   const id = uuidv4();
@@ -109,7 +135,7 @@ router.post('/create', async (req, res) => {
       displayName: resolvedDisplayName,
       email: email.trim().toLowerCase(),
       workEmail: workEmail.trim().toLowerCase(),
-      azureObjectId: azureUser.id,
+      azureObjectId: azureUser ? azureUser.id : null,
       department: department || null,
       manager: manager || null,
       floor: floor || null,
@@ -127,17 +153,72 @@ router.post('/create', async (req, res) => {
       action: 'USER_CREATED',
       userId: id,
       affectedUser: resolvedDisplayName,
-      details: { department, workEmail, role },
+      details: { department, workEmail, role, azureDeferred: Boolean(deferAzure) },
       status: 'SUCCESS',
       ipAddress: req.ip,
     });
 
-    res.status(201).json({ id, azureObjectId: azureUser.id, status: 'PENDING' });
+    res.status(201).json({ id, azureObjectId: azureUser ? azureUser.id : null, status: 'PENDING' });
   } catch (error) {
     // The Azure account was already created above but the local DB
     // insert failed - flag this loudly so an admin can reconcile it
     // manually rather than silently losing track of a real account.
     console.error('[routes/users] Local DB insert failed after Azure user creation:', error.message);
+    res.status(500).json({
+      error: 'User was created in Azure AD but failed to save locally. Contact IT to reconcile this account.',
+    });
+  }
+});
+
+// POST /api/users/:id/provision-azure - creates the REAL Azure AD
+// account for a user whose local row already exists but was created
+// with deferAzure (azureObjectId is still null). This is what
+// RequestDetails' "MS Azure" platform button calls.
+router.post('/:id/provision-azure', async (req, res) => {
+  const db = getDb();
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found.' });
+  }
+  if (user.azureObjectId) {
+    return res.status(409).json({ error: 'This user already has a real Azure AD account.' });
+  }
+
+  let azureUser;
+  try {
+    azureUser = await graphService.createAzureUser({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      workEmail: user.workEmail,
+      department: user.department,
+      jobTitle: user.jobTitle,
+      displayName: user.displayName,
+    });
+  } catch (error) {
+    console.error('[routes/users] provision-azure failed:', error.message);
+    recordAuditLog({
+      action: 'AZURE_USER_CREATE_FAILED',
+      userId: user.id,
+      affectedUser: user.displayName,
+      status: 'FAILED',
+      ipAddress: req.ip,
+    });
+    return res.status(502).json({ error: 'Failed to create user in Azure AD.' });
+  }
+
+  try {
+    db.prepare("UPDATE users SET azureObjectId = ?, updatedAt = datetime('now') WHERE id = ?").run(azureUser.id, user.id);
+    recordAuditLog({
+      action: 'USER_CREATED',
+      userId: user.id,
+      affectedUser: user.displayName,
+      details: { azureObjectId: azureUser.id },
+      status: 'SUCCESS',
+      ipAddress: req.ip,
+    });
+    res.json({ id: user.id, azureObjectId: azureUser.id });
+  } catch (error) {
+    console.error('[routes/users] provision-azure DB update failed:', error.message);
     res.status(500).json({
       error: 'User was created in Azure AD but failed to save locally. Contact IT to reconcile this account.',
     });
