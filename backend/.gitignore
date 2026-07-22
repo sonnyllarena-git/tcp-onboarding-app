@@ -1,7 +1,7 @@
 # Dependencies
 node_modules/
 
-# Secrets - never commit real credentials
+# Environment Variables (SENSITIVE - NEVER COMMIT!)
 .env
 .env.local
 .env.*.local
@@ -12,6 +12,11 @@ data/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Credentials and Secrets
+*-credentials.json
+credentials.json
+secrets.json
 
 # Logs
 *.log
