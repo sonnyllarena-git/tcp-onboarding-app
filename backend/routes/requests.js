@@ -59,7 +59,22 @@ function parsePlatforms(value) {
 }
 
 router.post('/onboarding', (req, res) => {
-  const { userId, submittedBy, department, manager, floor, role, jobTitle, type, platforms } = req.body;
+  const {
+    userId,
+    submittedBy,
+    department,
+    manager,
+    floor,
+    role,
+    jobTitle,
+    type,
+    platforms,
+    displayName,
+    team,
+    country,
+    workingLocation,
+    startDate,
+  } = req.body;
 
   const errors = [];
   if (!userId) errors.push('userId is required.');
@@ -80,8 +95,8 @@ router.post('/onboarding', (req, res) => {
     runInTransaction(() => {
       db.prepare(
         `INSERT INTO onboarding_requests
-          (id, userId, submittedBy, department, manager, floor, role, jobTitle, type, platforms, status, slaStartTime, slaEndTime)
-         VALUES (@id, @userId, @submittedBy, @department, @manager, @floor, @role, @jobTitle, @type, @platforms, 'PENDING', @slaStartTime, @slaEndTime)`
+          (id, userId, submittedBy, department, manager, floor, role, jobTitle, type, platforms, status, slaStartTime, slaEndTime, displayName, team, country, workingLocation, startDate)
+         VALUES (@id, @userId, @submittedBy, @department, @manager, @floor, @role, @jobTitle, @type, @platforms, 'PENDING', @slaStartTime, @slaEndTime, @displayName, @team, @country, @workingLocation, @startDate)`
       ).run({
         id,
         userId,
@@ -95,6 +110,11 @@ router.post('/onboarding', (req, res) => {
         platforms: JSON.stringify(platformList),
         slaStartTime: now,
         slaEndTime,
+        displayName: displayName || null,
+        team: team || null,
+        country: country || null,
+        workingLocation: workingLocation || null,
+        startDate: startDate || null,
       });
 
       const insertPlatform = db.prepare(

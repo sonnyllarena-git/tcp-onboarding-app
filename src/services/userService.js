@@ -12,11 +12,11 @@
  * here, so ManageUsers/RequestDetails/TransitionForm/etc. don't each
  * need their own translation.
  *
- * Known gap: the backend schema (built in Phase 2, to spec) has no
- * column for "role" or per-user "platforms" - those always come back
- * as null/[] from a real user record. Role is still captured on the
- * onboarding request itself; it's just not persisted onto the user's
- * profile after that.
+ * Known gap: the backend schema still has no column for per-user
+ * "platforms" - it always comes back as [] from a real user record
+ * (per-request platform status is tracked separately, in
+ * platform_status). Phase 4 added role/displayName/team/country/
+ * workingLocation/startDate columns (see backend/services/dbService.js).
  */
 
 import { api } from './api';
@@ -39,6 +39,7 @@ export function adaptUser(raw) {
   return {
     id: raw.id,
     name: `${raw.firstName || ''} ${raw.lastName || ''}`.trim(),
+    displayName: raw.displayName || `${raw.firstName || ''} ${raw.lastName || ''}`.trim(),
     email: raw.email,
     workEmail: raw.workEmail || null,
     workEmailCreatedAt: raw.createdAt || null,
@@ -47,7 +48,11 @@ export function adaptUser(raw) {
     manager: raw.manager || null,
     floor: raw.floor || null,
     jobTitle: raw.jobTitle || null,
-    role: null, // no backend column - see file header
+    role: raw.role || null,
+    team: raw.team || null,
+    country: raw.country || null,
+    workingLocation: raw.workingLocation || null,
+    startDate: raw.startDate || null,
     type: raw.type || 'Internal',
     dateOnboarded: formatDate(raw.createdAt),
     dateOffboarded: raw.status === 'INACTIVE' ? formatDate(raw.updatedAt) : null,
@@ -70,24 +75,29 @@ export async function getUser(id) {
 
 /**
  * POST /api/users/create - creates a REAL Azure AD account plus the
- * local DB record. formData is OnboardingForm's own field names;
- * translated here into the backend's expected payload shape.
- * @param {Object} formData
+ * local DB record.
+ * @param {Object} fields - firstName, lastName, displayName, email,
+ *   workEmail, department, manager, floor, jobTitle, type, role,
+ *   team, country, workingLocation, startDate
  * @returns {Promise<{id: string, azureObjectId: string, status: string}>}
  */
-export async function createUser(formData) {
-  const [firstName, ...rest] = (formData.employeeName || '').trim().split(/\s+/);
-  const lastName = rest.join(' ') || firstName;
+export async function createUser(fields) {
   return api.post('/api/users/create', {
-    firstName,
-    lastName,
-    email: formData.email,
-    workEmail: formData.workEmail,
-    department: formData.departmentName,
-    manager: formData.managerName,
-    floor: formData.floor,
-    jobTitle: formData.jobTitleLabel,
-    type: formData.employeeTypeLabel || 'Internal',
+    firstName: fields.firstName,
+    lastName: fields.lastName,
+    displayName: fields.displayName,
+    email: fields.email,
+    workEmail: fields.workEmail,
+    department: fields.department,
+    manager: fields.manager,
+    floor: fields.floor,
+    jobTitle: fields.jobTitle,
+    type: fields.type || 'Internal',
+    role: fields.role,
+    team: fields.team,
+    country: fields.country,
+    workingLocation: fields.workingLocation,
+    startDate: fields.startDate,
   });
 }
 

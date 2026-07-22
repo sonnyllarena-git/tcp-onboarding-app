@@ -1,48 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Step1EmployeeInfo, { validateStep1 } from './Step1EmployeeInfo';
-import Step2PlatformSelection, { validateStep2 } from './Step2PlatformSelection';
-import Step3Review from './Step3Review';
+import Step1PersonalInfo, { validateStep1 } from './Step1PersonalInfo';
+import Step2EmploymentDetails, { validateStep2 } from './Step2EmploymentDetails';
+import Step3Review, { validateStep3 } from './Step3Review';
 import CancelConfirmationModal from './CancelConfirmationModal';
 import SuccessModal from './SuccessModal';
 import { useAuth } from '../../hooks/useAuth';
-import { generateWorkEmail, generateDuplicateWorkEmail, checkDuplicateActiveUser } from '../../mockData';
 import * as userService from '../../services/userService';
 import * as requestService from '../../services/requestService';
 
 const TOTAL_STEPS = 3;
 
 const STEP_LABELS = {
-  1: 'Employee Information',
-  2: 'Platform Selection',
-  3: 'Review & Submit',
+  1: 'Personal Info',
+  2: 'Employment Details',
+  3: 'Platforms',
 };
 
 const INITIAL_FORM_DATA = {
-  employeeName: '',
+  // Step 1: Personal Info
+  firstName: '',
+  lastName: '',
+  displayName: '',
+  displayNameEdited: false,
   email: '',
+  workingLocation: '',
+  country: '',
+  // Step 2: Employment Details
   startDate: '',
-  departmentId: '',
-  departmentName: '',
-  managerId: '',
-  managerName: '',
-  jobTitleId: '',
-  jobTitleLabel: '',
   role: '',
-  floor: '',
+  department: '',
+  manager: '',
+  team: '',
+  jobTitle: '',
   employeeType: '',
-  employeeTypeLabel: '',
-  azureGroupId: '',
-  azureGroupName: '',
-  azureGroupKey: '',
+  // Step 3: Platforms
   selectedPlatforms: [],
 };
 
 /**
  * OnboardingForm Component
  *
- * 3-step wizard for onboarding new employees.
- * Collects employee info, platform selection, and review.
+ * 3-step wizard for onboarding new employees: Personal Info,
+ * Employment Details, then Platforms (auto-populated from the
+ * selected Role, editable, submits to the real backend which
+ * creates the real Azure AD account).
  *
  * @component
  * @returns {React.ReactElement} OnboardingForm component
@@ -57,24 +59,24 @@ function OnboardingForm() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submittedRequest, setSubmittedRequest] = useState(null);
-  const [activeUsers, setActiveUsers] = useState([]);
-  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const [existingEmails, setExistingEmails] = useState([]);
 
-  // Fetched once here (not in Step1EmployeeInfo) since it's a real,
-  // async backend call now instead of a synchronous mock lookup - the
-  // manager dropdown and the duplicate-name check both need it.
+  // Real Azure directory, fetched once, used only for Step 1's
+  // "Email already exists" on-blur check.
   useEffect(() => {
     let cancelled = false;
     userService
       .getAllUsers()
       .then((users) => {
-        if (!cancelled) setActiveUsers(users.filter((u) => u.status === 'active'));
+        if (!cancelled) {
+          setExistingEmails(
+            users.flatMap((u) => [u.email, u.workEmail].filter(Boolean).map((e) => e.toLowerCase()))
+          );
+        }
       })
       .catch((error) => {
-        console.error('[OnboardingForm] failed to load users:', error.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingUsers(false);
+        console.error('[OnboardingForm] failed to load existing users for email check:', error.message);
       });
     return () => {
       cancelled = true;
@@ -88,7 +90,7 @@ function OnboardingForm() {
   const handleNext = () => {
     // Re-validate here (not just in the step's disabled button) so the
     // transition itself is guarded, not only the button that triggers it.
-    if (currentStep === 1 && !validateStep1(formData)) {
+    if (currentStep === 1 && !validateStep1(formData, existingEmails)) {
       return;
     }
     if (currentStep === 2 && !validateStep2(formData)) {
@@ -115,39 +117,62 @@ function OnboardingForm() {
   };
 
   const handleSubmit = async () => {
+    setAttemptedSubmit(true);
+    if (!validateStep3(formData)) {
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
     try {
-      // Real Azure AD account creation happens now, at submission time
-      // (the backend requires a work email up front) - the old mock
-      // flow deferred this to the platform-provisioning step, so the
-      // work email is generated here with the same naming convention
-      // it always used (firstname@, or firstname.lastname@ on a
-      // duplicate-name collision) rather than asking for a new field.
-      const isDuplicate = checkDuplicateActiveUser(formData.employeeName, activeUsers);
-      const workEmail = isDuplicate
-        ? generateDuplicateWorkEmail(formData.employeeName)
-        : generateWorkEmail(formData.employeeName);
+      // Work email: same firstname@ convention the app has always
+      // used, derived from the real fields now available (no separate
+      // "work email" field in the Phase 4 spec's Step 1/2).
+      const workEmail = `${formData.firstName}`.trim().toLowerCase() + '@thecreditpros.com';
 
-      const createdUser = await userService.createUser({ ...formData, workEmail });
+      // Per the Phase 4 spec: only firstName/lastName/displayName/role
+      // are meant for Azure right now (role itself has no Graph
+      // attribute, so it's stored locally only - see
+      // backend/services/graphService.js's comment). Every other
+      // field is still saved to the local database via both calls
+      // below.
+      const createdUser = await userService.createUser({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        displayName: formData.displayName,
+        email: formData.email,
+        workEmail,
+        department: formData.department,
+        manager: formData.manager,
+        jobTitle: formData.jobTitle,
+        type: formData.employeeType,
+        role: formData.role,
+        team: formData.team,
+        country: formData.country,
+        workingLocation: formData.workingLocation,
+        startDate: formData.startDate,
+      });
 
       const createdRequest = await requestService.submitOnboardingRequest({
         userId: createdUser.id,
         submittedBy: user?.name || 'Unknown User',
-        department: formData.departmentName,
-        manager: formData.managerName,
-        floor: formData.floor,
+        department: formData.department,
+        manager: formData.manager,
         role: formData.role,
-        jobTitle: formData.jobTitleLabel,
-        type: formData.employeeTypeLabel || 'Internal',
+        jobTitle: formData.jobTitle,
+        type: formData.employeeType,
         platforms: formData.selectedPlatforms,
+        displayName: formData.displayName,
+        team: formData.team,
+        country: formData.country,
+        workingLocation: formData.workingLocation,
+        startDate: formData.startDate,
       });
 
       // No local recordAuditLog here - the backend already records
       // ONBOARDING_SUBMITTED for this call (see backend/routes/requests.js),
       // and AuditLogs.jsx merges that real entry in automatically.
 
-      setSubmittedRequest({ id: createdRequest.id, employeeName: formData.employeeName });
+      setSubmittedRequest({ id: createdRequest.id, employeeName: formData.displayName });
       setShowSuccessModal(true);
     } catch (error) {
       console.error('[OnboardingForm] submit failed:', error.message);
@@ -201,17 +226,16 @@ function OnboardingForm() {
         </div>
 
         {currentStep === 1 && (
-          <Step1EmployeeInfo
+          <Step1PersonalInfo
             formData={formData}
             onDataChange={handleDataChange}
             onNext={handleNext}
             onCancel={handleCancel}
-            activeUsers={activeUsers}
-            loadingUsers={loadingUsers}
+            existingEmails={existingEmails}
           />
         )}
         {currentStep === 2 && (
-          <Step2PlatformSelection
+          <Step2EmploymentDetails
             formData={formData}
             onDataChange={handleDataChange}
             onNext={handleNext}
@@ -222,11 +246,13 @@ function OnboardingForm() {
         {currentStep === 3 && (
           <Step3Review
             formData={formData}
+            onDataChange={handleDataChange}
             onSubmit={handleSubmit}
             onBack={handleBack}
             onCancel={handleCancel}
             submitting={submitting}
             error={submitError}
+            attemptedSubmit={attemptedSubmit}
           />
         )}
       </div>

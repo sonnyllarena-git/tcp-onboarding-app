@@ -82,6 +82,21 @@ function getDb() {
   return db;
 }
 
+// Adds a column to an existing table if it isn't already there.
+// SQLite's ALTER TABLE ADD COLUMN has no "IF NOT EXISTS" clause, so
+// this checks PRAGMA table_info first - safe to call on every boot,
+// and safe against a fresh DB that already has the column from
+// CREATE TABLE (new installs) as well as an older DB that needs it
+// added (existing installs, e.g. Phase 4's new onboarding fields).
+function ensureColumn(connection, table, column, definition) {
+  const existing = connection.prepare(`PRAGMA table_info(${table})`).all();
+  const hasColumn = existing.some((col) => col.name === column);
+  if (!hasColumn) {
+    connection.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    console.log(`[dbService] Migration: added ${table}.${column}`);
+  }
+}
+
 // Creates every table if it doesn't already exist. Safe to run on
 // every server start - CREATE TABLE IF NOT EXISTS is a no-op once
 // the schema is in place, which is this project's whole "migration"
@@ -181,6 +196,29 @@ function runMigrations() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+  `);
+
+  // ------------------------------------------------------------
+  // Phase 4: richer onboarding data model (real 38-role taxonomy,
+  // Team/Country/Working Location/Display Name/Start Date). Added
+  // via ensureColumn rather than the CREATE TABLE statements above
+  // so existing installs (with data already in these tables) pick
+  // up the new columns without losing anything.
+  // ------------------------------------------------------------
+  ensureColumn(connection, 'users', 'role', 'TEXT');
+  ensureColumn(connection, 'users', 'displayName', 'TEXT');
+  ensureColumn(connection, 'users', 'team', 'TEXT');
+  ensureColumn(connection, 'users', 'country', 'TEXT');
+  ensureColumn(connection, 'users', 'workingLocation', 'TEXT');
+  ensureColumn(connection, 'users', 'startDate', 'TEXT');
+
+  ensureColumn(connection, 'onboarding_requests', 'displayName', 'TEXT');
+  ensureColumn(connection, 'onboarding_requests', 'team', 'TEXT');
+  ensureColumn(connection, 'onboarding_requests', 'country', 'TEXT');
+  ensureColumn(connection, 'onboarding_requests', 'workingLocation', 'TEXT');
+  ensureColumn(connection, 'onboarding_requests', 'startDate', 'TEXT');
+
+  connection.exec(`
     CREATE INDEX IF NOT EXISTS idx_onboarding_userId ON onboarding_requests(userId);
     CREATE INDEX IF NOT EXISTS idx_onboarding_status ON onboarding_requests(status);
     CREATE INDEX IF NOT EXISTS idx_offboarding_userId ON offboarding_requests(userId);

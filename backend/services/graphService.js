@@ -70,7 +70,14 @@ async function getAzureUser(azureObjectId) {
 // the userPrincipalName and mailNickname; Graph requires a
 // temporary password with forceChangePasswordNextSignIn so the
 // new hire sets their own on first login.
-async function createAzureUser({ firstName, lastName, workEmail, department, jobTitle }) {
+//
+// `role` (e.g. "IH.SalesAgent") has no standard Graph attribute to
+// land in - Graph has no generic "role code" field, only jobTitle -
+// so it is NOT sent to Azure here. It's still stored locally (users
+// table + the onboarding request). Wiring it into Azure for real
+// would need a custom directory extension attribute, left for a
+// later phase per the Phase 4 spec's own "will finalize later" note.
+async function createAzureUser({ firstName, lastName, workEmail, department, jobTitle, displayName }) {
   if (!firstName || !lastName || !workEmail) {
     throw new Error('firstName, lastName, and workEmail are required to create an Azure AD user.');
   }
@@ -82,7 +89,7 @@ async function createAzureUser({ firstName, lastName, workEmail, department, job
     const client = getGraphClient();
     const created = await client.api('/users').post({
       accountEnabled: true,
-      displayName: `${firstName} ${lastName}`,
+      displayName: displayName || `${firstName} ${lastName}`,
       givenName: firstName,
       surname: lastName,
       mailNickname,

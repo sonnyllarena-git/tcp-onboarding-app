@@ -40,7 +40,23 @@ router.get('/', async (req, res) => {
 // result into the local `users` table for fast lookups by the
 // rest of this API without round-tripping to Graph every time.
 router.post('/create', async (req, res) => {
-  const { firstName, lastName, email, department, manager, floor, jobTitle, type, workEmail } = req.body;
+  const {
+    firstName,
+    lastName,
+    email,
+    department,
+    manager,
+    floor,
+    jobTitle,
+    type,
+    workEmail,
+    displayName,
+    role,
+    team,
+    country,
+    workingLocation,
+    startDate,
+  } = req.body;
 
   const validationErrors = [];
   if (!firstName || !firstName.trim()) validationErrors.push('firstName is required.');
@@ -59,14 +75,20 @@ router.post('/create', async (req, res) => {
     return res.status(409).json({ error: 'A user with this email already exists.' });
   }
 
+  const resolvedDisplayName = (displayName && displayName.trim()) || `${firstName} ${lastName}`.trim();
+
   let azureUser;
   try {
-    azureUser = await graphService.createAzureUser({ firstName, lastName, workEmail, department, jobTitle });
+    // Only firstName/lastName/displayName/jobTitle/department are real
+    // Graph attributes - "role" (e.g. "IH.SalesAgent") has no Graph
+    // equivalent and is stored locally only. See graphService.createAzureUser's
+    // own comment for why.
+    azureUser = await graphService.createAzureUser({ firstName, lastName, workEmail, department, jobTitle, displayName: resolvedDisplayName });
   } catch (error) {
     console.error('[routes/users] Azure user creation failed:', error.message);
     recordAuditLog({
       action: 'AZURE_USER_CREATE_FAILED',
-      affectedUser: `${firstName} ${lastName}`,
+      affectedUser: resolvedDisplayName,
       details: { department },
       status: 'FAILED',
       ipAddress: req.ip,
@@ -78,12 +100,13 @@ router.post('/create', async (req, res) => {
   try {
     db.prepare(
       `INSERT INTO users
-        (id, firstName, lastName, email, workEmail, azureObjectId, department, manager, floor, jobTitle, type, status)
-       VALUES (@id, @firstName, @lastName, @email, @workEmail, @azureObjectId, @department, @manager, @floor, @jobTitle, @type, @status)`
+        (id, firstName, lastName, displayName, email, workEmail, azureObjectId, department, manager, floor, jobTitle, role, team, country, workingLocation, startDate, type, status)
+       VALUES (@id, @firstName, @lastName, @displayName, @email, @workEmail, @azureObjectId, @department, @manager, @floor, @jobTitle, @role, @team, @country, @workingLocation, @startDate, @type, @status)`
     ).run({
       id,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
+      displayName: resolvedDisplayName,
       email: email.trim().toLowerCase(),
       workEmail: workEmail.trim().toLowerCase(),
       azureObjectId: azureUser.id,
@@ -91,6 +114,11 @@ router.post('/create', async (req, res) => {
       manager: manager || null,
       floor: floor || null,
       jobTitle: jobTitle || null,
+      role: role || null,
+      team: team || null,
+      country: country || null,
+      workingLocation: workingLocation || null,
+      startDate: startDate || null,
       type: type || 'Internal',
       status: 'PENDING',
     });
@@ -98,8 +126,8 @@ router.post('/create', async (req, res) => {
     recordAuditLog({
       action: 'USER_CREATED',
       userId: id,
-      affectedUser: `${firstName} ${lastName}`,
-      details: { department, workEmail },
+      affectedUser: resolvedDisplayName,
+      details: { department, workEmail, role },
       status: 'SUCCESS',
       ipAddress: req.ip,
     });
@@ -131,7 +159,7 @@ router.get('/:id', (req, res) => {
 });
 
 router.patch('/:id', async (req, res) => {
-  const { department, manager, floor, jobTitle, type } = req.body;
+  const { department, manager, floor, jobTitle, type, role, team, country, workingLocation } = req.body;
   const db = getDb();
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
@@ -150,6 +178,7 @@ router.patch('/:id', async (req, res) => {
     db.prepare(
       `UPDATE users
        SET department = @department, manager = @manager, floor = @floor, jobTitle = @jobTitle, type = @type,
+           role = @role, team = @team, country = @country, workingLocation = @workingLocation,
            updatedAt = datetime('now')
        WHERE id = @id`
     ).run({
@@ -159,6 +188,10 @@ router.patch('/:id', async (req, res) => {
       floor: floor ?? user.floor,
       jobTitle: jobTitle ?? user.jobTitle,
       type: type ?? user.type,
+      role: role ?? user.role,
+      team: team ?? user.team,
+      country: country ?? user.country,
+      workingLocation: workingLocation ?? user.workingLocation,
     });
 
     recordAuditLog({

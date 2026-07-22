@@ -17,21 +17,32 @@ const { getDb, recordAuditLog } = require('../services/dbService');
 
 const router = express.Router();
 
-// Same canonical platform list as the existing frontend
-// (src/mockData.js PLATFORMS), so this API and the current
-// mock-data frontend describe the same set of platforms - useful
-// once the frontend is wired up to call this backend.
+// Phase 4: the real 18-platform list (src/data/formOptions.js
+// PLATFORMS), replacing Phase 2's placeholder 10-platform set.
+// Offboarding still uses the OLDER 10-platform PLATFORM_ACTIONS list
+// in src/mockData.js - Phase 4 only covers onboarding, so the two
+// workflows deliberately use different platform vocabularies for
+// now (a disclosed, not-yet-reconciled gap - see the Phase 4 summary).
 const PLATFORMS = [
-  { name: 'Azure AD', offboardAction: 'Disable account' },
-  { name: 'Keeper', offboardAction: 'Delete credentials' },
-  { name: 'Hodu', offboardAction: 'Disable agent' },
-  { name: 'Krisp', offboardAction: 'Disable license' },
-  { name: 'Jira', offboardAction: 'Remove access' },
-  { name: 'Zoho Desk', offboardAction: 'Remove access' },
-  { name: 'Acuity', offboardAction: 'Revoke' },
-  { name: 'TheCreditPros Portal', offboardAction: 'Remove access' },
-  { name: 'Sales IQ', offboardAction: 'Disable' },
-  { name: 'StaffCounter', offboardAction: 'Disable' },
+  { name: 'MS Azure' },
+  { name: 'Atera' },
+  { name: 'Bitdefender' },
+  { name: 'DRATA' },
+  { name: 'StaffCounter' },
+  { name: 'Krisp' },
+  { name: 'Keeper' },
+  { name: 'Observe.ai' },
+  { name: 'Jira' },
+  { name: 'Confluence' },
+  { name: 'Hodu' },
+  { name: 'Salesforce' },
+  { name: 'Zoho' },
+  { name: 'Acuity' },
+  { name: 'Portal' },
+  { name: 'AWS' },
+  { name: 'GitHub' },
+  { name: 'Salesforce Admin' },
+  { name: 'TCP Academy' },
 ];
 
 router.get('/', (req, res) => {

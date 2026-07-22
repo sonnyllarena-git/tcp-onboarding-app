@@ -89,6 +89,12 @@ function adaptRequestSummary(raw, user) {
     manager: raw.manager,
     managerName: raw.manager,
     userId: raw.userId,
+    role: raw.role,
+    displayName: raw.displayName || user?.displayName || user?.name,
+    team: raw.team,
+    country: raw.country,
+    workingLocation: raw.workingLocation,
+    startDate: raw.startDate,
     platforms: [], // full per-platform rows aren't fetched at list scope - see file header
   };
 }
@@ -123,6 +129,11 @@ function adaptRequestDetail(raw, platformRows, auditRows, user) {
     offboardingReason: 'Not tracked by backend',
     finalDay: 'N/A',
     timing: 'immediate',
+    displayName: raw.displayName || user.displayName || user.name,
+    team: raw.team,
+    country: raw.country,
+    workingLocation: raw.workingLocation,
+    startDate: raw.startDate,
     platforms: platformRows.map((p) => ({
       name: p.platformName,
       status: mapPlatformStatus(p.status),

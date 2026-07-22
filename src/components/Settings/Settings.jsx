@@ -5,6 +5,7 @@ import AppearanceSettings from './sections/AppearanceSettings';
 import NotificationSettings from './sections/NotificationSettings';
 import PlatformManagement from './sections/PlatformManagement';
 import DefaultPlatforms from './sections/DefaultPlatforms';
+import RolePlatformMapping from './sections/RolePlatformMapping';
 
 const SETTINGS_KEY = 'tcp_settings';
 
@@ -16,6 +17,7 @@ const USER_SECTIONS = [
 const ADMIN_ONLY_SECTIONS = [
   { key: 'platformManagement', label: 'Platform Management', icon: '🖥️' },
   { key: 'defaultPlatforms', label: 'Default Platforms', icon: '📋' },
+  { key: 'rolePlatformMapping', label: 'Role → Platform Mapping', icon: '🔀' },
 ];
 
 /**
@@ -146,6 +148,8 @@ function Settings() {
         return isAdmin ? (
           <DefaultPlatforms settings={settings} onUpdateSettings={updateSetting} />
         ) : null;
+      case 'rolePlatformMapping':
+        return isAdmin ? <RolePlatformMapping /> : null;
       default:
         return null;
     }

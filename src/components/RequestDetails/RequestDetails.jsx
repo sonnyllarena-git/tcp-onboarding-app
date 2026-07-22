@@ -574,10 +574,36 @@ function RequestDetails() {
                 </div>
               </>
             ) : (
-              <div>
-                <p className="text-sm text-gray-400">Job Title</p>
-                <p className="font-semibold">{request.jobTitleLabel || 'N/A'}</p>
-              </div>
+              <>
+                <div>
+                  <p className="text-sm text-gray-400">Job Title</p>
+                  <p className="font-semibold">{request.jobTitleLabel || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Display Name</p>
+                  <p className="font-semibold">{request.displayName || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Role</p>
+                  <p className="font-semibold">{request.role || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Team</p>
+                  <p className="font-semibold">{request.team || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Working Location</p>
+                  <p className="font-semibold">{request.workingLocation || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Country</p>
+                  <p className="font-semibold">{request.country || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400">Start Date</p>
+                  <p className="font-semibold">{request.startDate || 'N/A'}</p>
+                </div>
+              </>
             )}
           </div>
         )}
