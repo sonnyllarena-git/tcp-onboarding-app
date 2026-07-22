@@ -38,6 +38,8 @@ function formatDate(isoOrSqlDateTime) {
 export function adaptUser(raw) {
   return {
     id: raw.id,
+    firstName: raw.firstName || '',
+    lastName: raw.lastName || '',
     name: `${raw.firstName || ''} ${raw.lastName || ''}`.trim(),
     displayName: raw.displayName || `${raw.firstName || ''} ${raw.lastName || ''}`.trim(),
     email: raw.email,

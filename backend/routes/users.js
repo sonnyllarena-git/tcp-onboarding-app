@@ -239,8 +239,10 @@ router.get('/:id', (req, res) => {
   }
 });
 
+const NAME_PATTERN = /^[A-Za-z]{2,50}$/;
+
 router.patch('/:id', async (req, res) => {
-  const { department, manager, floor, jobTitle, type, role, team, country, workingLocation } = req.body;
+  const { department, manager, floor, jobTitle, type, role, team, country, workingLocation, firstName, lastName, displayName } = req.body;
   const db = getDb();
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
@@ -248,18 +250,58 @@ router.patch('/:id', async (req, res) => {
     return res.status(404).json({ error: 'User not found.' });
   }
 
+  const validationErrors = [];
+  if (firstName !== undefined && !NAME_PATTERN.test(firstName.trim())) {
+    validationErrors.push('First name must be 2-50 letters, no numbers.');
+  }
+  if (lastName !== undefined && !NAME_PATTERN.test(lastName.trim())) {
+    validationErrors.push('Last name must be 2-50 letters, no numbers.');
+  }
+  if (displayName !== undefined && (!displayName.trim() || displayName.length > 100)) {
+    validationErrors.push('Display name is required and must be 100 characters or fewer.');
+  }
+  if (jobTitle !== undefined && jobTitle !== null && jobTitle.length > 100) {
+    validationErrors.push('Job title must be 100 characters or fewer.');
+  }
+  if (validationErrors.length > 0) {
+    return res.status(400).json({ error: 'Validation failed', details: validationErrors });
+  }
+
   try {
-    if (user.azureObjectId && (department !== undefined || jobTitle !== undefined)) {
-      await graphService.updateAzureUser(user.azureObjectId, {
-        ...(department !== undefined ? { department } : {}),
-        ...(jobTitle !== undefined ? { jobTitle } : {}),
-      });
+    // Push name/title/department changes to the real Azure account too
+    // (if it has one yet - a still-deferred user has no azureObjectId).
+    // Azure sync failing doesn't fail the whole request - the local
+    // record is still the source of truth for this app, and a failed
+    // sync is logged loudly rather than silently swallowed.
+    if (
+      user.azureObjectId &&
+      (department !== undefined || jobTitle !== undefined || firstName !== undefined || lastName !== undefined || displayName !== undefined)
+    ) {
+      try {
+        await graphService.updateAzureUser(user.azureObjectId, {
+          ...(department !== undefined ? { department } : {}),
+          ...(jobTitle !== undefined ? { jobTitle } : {}),
+          ...(firstName !== undefined ? { givenName: firstName.trim() } : {}),
+          ...(lastName !== undefined ? { surname: lastName.trim() } : {}),
+          ...(displayName !== undefined ? { displayName: displayName.trim() } : {}),
+        });
+      } catch (error) {
+        console.error('[routes/users] Azure sync failed during PATCH /:id:', error.message);
+        recordAuditLog({
+          action: 'AZURE_USER_UPDATE_FAILED',
+          userId: user.id,
+          affectedUser: `${user.firstName} ${user.lastName}`,
+          status: 'FAILED',
+          ipAddress: req.ip,
+        });
+      }
     }
 
     db.prepare(
       `UPDATE users
        SET department = @department, manager = @manager, floor = @floor, jobTitle = @jobTitle, type = @type,
            role = @role, team = @team, country = @country, workingLocation = @workingLocation,
+           firstName = @firstName, lastName = @lastName, displayName = @displayName,
            updatedAt = datetime('now')
        WHERE id = @id`
     ).run({
@@ -273,13 +315,16 @@ router.patch('/:id', async (req, res) => {
       team: team ?? user.team,
       country: country ?? user.country,
       workingLocation: workingLocation ?? user.workingLocation,
+      firstName: firstName !== undefined ? firstName.trim() : user.firstName,
+      lastName: lastName !== undefined ? lastName.trim() : user.lastName,
+      displayName: displayName !== undefined ? displayName.trim() : user.displayName,
     });
 
     recordAuditLog({
       action: 'USER_UPDATED',
       userId: user.id,
-      affectedUser: `${user.firstName} ${user.lastName}`,
-      details: { department, manager, floor, jobTitle, type },
+      affectedUser: displayName || `${user.firstName} ${user.lastName}`,
+      details: { department, manager, floor, jobTitle, type, firstName, lastName, displayName },
       status: 'SUCCESS',
       ipAddress: req.ip,
     });

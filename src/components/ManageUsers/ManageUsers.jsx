@@ -305,6 +305,7 @@ function ManageUsers() {
         user={selectedUser}
         onClose={handleCloseModal}
         onViewRequest={handleViewRequestById}
+        onUserUpdated={loadUsers}
       />
 
       {transitionUser && (

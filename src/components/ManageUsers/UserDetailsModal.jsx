@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { getPendingRequestByEmail } from '../../mockData';
 import { listRequests } from '../../services/requestService';
+import { updateUser } from '../../services/userService';
+import { DEPARTMENTS } from '../../data/formOptions';
 import EmployeeHistoryModal from './EmployeeHistoryModal';
 
 const STATUS_INDICATORS = {
@@ -9,6 +11,29 @@ const STATUS_INDICATORS = {
   pending: { emoji: '🟡', label: 'Pending' },
   inactive: { emoji: '⚫', label: 'Inactive' },
 };
+
+const NAME_PATTERN = /^[A-Za-z]{2,50}$/;
+
+function buildEditFormData(user) {
+  return {
+    firstName: user.firstName || '',
+    lastName: user.lastName || '',
+    displayName: user.displayName || user.name || '',
+    displayNameEdited: true, // editing an EXISTING user - don't clobber a deliberately different display name
+    jobTitle: user.jobTitle || '',
+    department: user.department || '',
+  };
+}
+
+function validateEditForm(form) {
+  const errors = {};
+  if (!NAME_PATTERN.test(form.firstName.trim())) errors.firstName = 'First name must be 2-50 letters, no numbers.';
+  if (!NAME_PATTERN.test(form.lastName.trim())) errors.lastName = 'Last name must be 2-50 letters, no numbers.';
+  if (!form.displayName.trim()) errors.displayName = 'Display name is required.';
+  else if (form.displayName.length > 100) errors.displayName = 'Display name must be 100 characters or fewer.';
+  if (form.jobTitle.length > 100) errors.jobTitle = 'Job title must be 100 characters or fewer.';
+  return errors;
+}
 
 /**
  * Formats a date-like value into a short "Mon D, YYYY" string.
@@ -51,15 +76,22 @@ function formatDate(date) {
  * @param {Function} onClose - Callback when the modal is closed
  * @returns {React.ReactElement|null} UserDetailsModal component
  */
-function UserDetailsModal({ isOpen, user, onClose, onViewRequest }) {
+function UserDetailsModal({ isOpen, user, onClose, onViewRequest, onUserUpdated }) {
   const [visible, setVisible] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [pendingRequest, setPendingRequest] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState(null);
+  const [editErrors, setEditErrors] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   useEffect(() => {
     if (!isOpen) {
       setVisible(false);
       setShowHistory(false);
+      setIsEditing(false);
+      setSaveError(null);
       return undefined;
     }
     const frame = requestAnimationFrame(() => setVisible(true));
@@ -99,6 +131,72 @@ function UserDetailsModal({ isOpen, user, onClose, onViewRequest }) {
     };
   }, [isOpen, user]);
 
+  const handleEditClick = () => {
+    setEditFormData(buildEditFormData(user));
+    setEditErrors({});
+    setSaveError(null);
+    setIsEditing(true);
+  };
+
+  // Per this feature's own spec: Cancel discards the in-progress edit
+  // AND closes the modal entirely, rather than just returning to the
+  // read-only view.
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditFormData(null);
+    setSaveError(null);
+    onClose();
+  };
+
+  const handleFieldChange = (field, value) => {
+    setEditFormData((prev) => {
+      const next = { ...prev, [field]: value };
+      if ((field === 'firstName' || field === 'lastName') && !prev.displayNameManuallyEdited) {
+        next.displayName = `${next.firstName} ${next.lastName}`.trim();
+      }
+      return next;
+    });
+  };
+
+  const handleDisplayNameChange = (value) => {
+    setEditFormData((prev) => ({ ...prev, displayName: value, displayNameManuallyEdited: true }));
+  };
+
+  const hasChanges =
+    editFormData &&
+    (editFormData.firstName !== (user.firstName || '') ||
+      editFormData.lastName !== (user.lastName || '') ||
+      editFormData.displayName !== (user.displayName || user.name || '') ||
+      editFormData.jobTitle !== (user.jobTitle || '') ||
+      editFormData.department !== (user.department || ''));
+
+  const handleSave = async () => {
+    const errors = validateEditForm(editFormData);
+    setEditErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await updateUser(user.id, {
+        firstName: editFormData.firstName.trim(),
+        lastName: editFormData.lastName.trim(),
+        displayName: editFormData.displayName.trim(),
+        jobTitle: editFormData.jobTitle.trim(),
+        department: editFormData.department,
+      });
+      if (onUserUpdated) onUserUpdated();
+      setIsEditing(false);
+      onClose();
+    } catch (error) {
+      console.error('[UserDetailsModal] save failed:', error.message);
+      setSaveError(error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (!isOpen || !user) {
     return null;
   }
@@ -137,17 +235,123 @@ function UserDetailsModal({ isOpen, user, onClose, onViewRequest }) {
               </h2>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded-md p-1 text-xl leading-none text-gray-400 transition-colors hover:bg-white/10 hover:text-[#d4a574] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d4a574]"
-          >
-            <span aria-hidden="true">&#10005;</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {!isEditing && (
+              <button
+                type="button"
+                onClick={handleEditClick}
+                className="rounded-lg border border-[#d4a574]/40 px-3 py-1.5 text-xs font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574]/10"
+              >
+                ✏️ Edit
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="rounded-md p-1 text-xl leading-none text-gray-400 transition-colors hover:bg-white/10 hover:text-[#d4a574] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d4a574]"
+            >
+              <span aria-hidden="true">&#10005;</span>
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
+          {saveError && (
+            <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+              <span>{saveError}</span>
+              <button
+                type="button"
+                onClick={handleSave}
+                className="shrink-0 rounded-lg border border-red-400 px-3 py-1 text-xs font-bold text-red-300 hover:bg-red-400/10"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {isEditing && (
+            <section className="mb-6 space-y-3 rounded-lg border border-[#d4a574]/30 bg-[#0d1b30] p-4">
+              <h3 className="text-sm font-bold uppercase tracking-wide text-[#d4a574]">Edit Details</h3>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-gray-400">First Name</label>
+                <input
+                  type="text"
+                  maxLength={50}
+                  value={editFormData.firstName}
+                  onChange={(e) => handleFieldChange('firstName', e.target.value)}
+                  className={`w-full rounded-lg border bg-[#1a365d] px-3 py-2 text-sm text-white focus:outline-none ${editErrors.firstName ? 'border-red-500' : 'border-[#d4a574]/30 focus:border-[#d4a574]'}`}
+                />
+                {editErrors.firstName && <p className="mt-1 text-xs text-red-400">{editErrors.firstName}</p>}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-gray-400">Last Name</label>
+                <input
+                  type="text"
+                  maxLength={50}
+                  value={editFormData.lastName}
+                  onChange={(e) => handleFieldChange('lastName', e.target.value)}
+                  className={`w-full rounded-lg border bg-[#1a365d] px-3 py-2 text-sm text-white focus:outline-none ${editErrors.lastName ? 'border-red-500' : 'border-[#d4a574]/30 focus:border-[#d4a574]'}`}
+                />
+                {editErrors.lastName && <p className="mt-1 text-xs text-red-400">{editErrors.lastName}</p>}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-gray-400">Display Name</label>
+                <input
+                  type="text"
+                  maxLength={100}
+                  value={editFormData.displayName}
+                  onChange={(e) => handleDisplayNameChange(e.target.value)}
+                  className={`w-full rounded-lg border bg-[#1a365d] px-3 py-2 text-sm text-white focus:outline-none ${editErrors.displayName ? 'border-red-500' : 'border-[#d4a574]/30 focus:border-[#d4a574]'}`}
+                />
+                {editErrors.displayName && <p className="mt-1 text-xs text-red-400">{editErrors.displayName}</p>}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-gray-400">Job Title</label>
+                <input
+                  type="text"
+                  maxLength={100}
+                  value={editFormData.jobTitle}
+                  onChange={(e) => handleFieldChange('jobTitle', e.target.value)}
+                  className={`w-full rounded-lg border bg-[#1a365d] px-3 py-2 text-sm text-white focus:outline-none ${editErrors.jobTitle ? 'border-red-500' : 'border-[#d4a574]/30 focus:border-[#d4a574]'}`}
+                />
+                {editErrors.jobTitle && <p className="mt-1 text-xs text-red-400">{editErrors.jobTitle}</p>}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-gray-400">Department</label>
+                <select
+                  value={editFormData.department}
+                  onChange={(e) => handleFieldChange('department', e.target.value)}
+                  className="w-full rounded-lg border border-[#d4a574]/30 bg-[#1a365d] px-3 py-2 text-sm text-white focus:border-[#d4a574] focus:outline-none"
+                >
+                  <option value="">Select Department</option>
+                  {DEPARTMENTS.map((dept) => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                  className="rounded-lg border border-[#d4a574] px-4 py-2 text-sm font-bold text-[#d4a574] transition-colors hover:bg-[#d4a574] hover:text-[#1a365d] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={!hasChanges || isSaving}
+                  className="flex items-center gap-2 rounded-lg bg-[#d4a574] px-4 py-2 text-sm font-bold text-[#1a365d] transition-colors hover:bg-[#c99a63] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSaving && <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#1a365d] border-t-transparent" />}
+                  {isSaving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </section>
+          )}
+
           {pendingRequest && (
             <div className="mb-6 rounded-lg border border-[#ed8936]/40 bg-[#ed8936]/10 p-4">
               <p className="mb-2 text-sm font-bold text-[#ed8936]">
@@ -311,6 +515,7 @@ UserDetailsModal.propTypes = {
   }),
   onClose: PropTypes.func.isRequired,
   onViewRequest: PropTypes.func,
+  onUserUpdated: PropTypes.func,
 };
 
 export default UserDetailsModal;

@@ -133,6 +133,12 @@ function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [activities, setActivities] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  // Bumped every 30s purely to force a re-render - getTimeAgo() reads
+  // Date.now() at render time, so without this the "X minutes ago"
+  // text would visually freeze at whatever it was when the activity
+  // list was last fetched (on the last navigation), even while the
+  // dropdown is open and the admin is watching it.
+  const [, forceTick] = useState(0);
   const menuRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -151,6 +157,11 @@ function NotificationCenter() {
       cancelled = true;
     };
   }, [location.pathname]);
+
+  useEffect(() => {
+    const interval = setInterval(() => forceTick((t) => t + 1), 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
